@@ -1872,7 +1872,7 @@ function trDepth(A, B, s, sPrev, T) {
     if (first && A.posters && A.posters.length) {
       tctx.save(); tctx.translate(X, Y); tctx.scale(sc, sc); tctx.translate(-W / 2, -H / 2); drawPosters(A, 99, 1 - a); tctx.restore();
     }
-    const extA = first ? smooth(1.05, 1.6, dz / D.dist) : last ? 1 - smooth(0.82, 0.97, u) : 1;
+    const extA = first ? smooth(1.05, 1.6, dz / D.dist) : 1;      // the landing year keeps its little shadow: the long one grows out of it
     drawSprite(sp, sp.ext, X, Y, sc, a * extA, vx, vy);
     drawSprite(sp, sp.face, X, Y, sc, a, vx, vy);
   }
