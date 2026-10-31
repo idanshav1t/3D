@@ -2367,11 +2367,25 @@ function buildSdf(scene) {
   const toIn = new Float64Array(N), toOut = new Float64Array(N);
   for (let i = 0; i < N; i++) { const inside = px[i * 4 + 3] > 127; toIn[i] = inside ? 0 : 1e20; toOut[i] = inside ? 1e20 : 0; }
   edt(toIn, SDF_W, SDF_H); edt(toOut, SDF_W, SDF_H);
+  // face shade per row, exactly like each letter's own fade (1 = FACE_TOP, 0 = FACE_BOTTOM): every line of letters
+  // has its band; rows between/outside bands follow the nearest band, so the in-between shapes get a sensible colour
+  const bands = [];
+  for (const L of scene.letters) {
+    const y0 = (L.cy - L.cap / 2) * sc, y1 = (L.cy + L.cap / 2) * sc;
+    const b = bands.find(q => Math.abs(q.y0 - y0) < 2 && Math.abs(q.y1 - y1) < 2); if (!b) bands.push({ y0, y1 });
+  }
+  const shadeRow = new Uint8Array(SDF_H);
+  for (let y = 0; y < SDF_H; y++) {
+    let best = null, bd = 1e9;
+    for (const q of bands) { const dd = y < q.y0 ? q.y0 - y : y > q.y1 ? y - q.y1 : 0; if (dd < bd) { bd = dd; best = q; } }
+    const t = best ? clamp01((y + 0.5 - best.y0) / Math.max(1, best.y1 - best.y0)) : 0;
+    shadeRow[y] = Math.round((t <= FACE_FADE_AT ? 1 : 1 - (t - FACE_FADE_AT) / (1 - FACE_FADE_AT)) * 255);
+  }
   const img = new ImageData(SDF_W, SDF_H);
   for (let i = 0; i < N; i++) {
     const d = Math.sqrt(toIn[i]) - Math.sqrt(toOut[i]);           // + outside, − inside (field pixels)
     const v = Math.round(clamp01(0.5 - d / (2 * SDF_R)) * 255);
-    img.data[i * 4] = v; img.data[i * 4 + 1] = v; img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255;
+    img.data[i * 4] = v; img.data[i * 4 + 1] = shadeRow[(i / SDF_W) | 0]; img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255;
   }
   const box = boxOf(scene.letters);
   scene.sdf = { img, tex: null, box: [box.x0 / W, 1 - box.y1 / H, box.x1 / W, 1 - box.y0 / H] };   // box in GL uv (y up)
@@ -2610,13 +2624,13 @@ void main(){
   col = col * (1. - tx.a) + tx.rgb;
   if (uMorph > 0.) {                                                // distance-field morph
     vec2 pu = uv + disp;
-    float dA = (.5 - texture2D(uSdfA, mapBox(pu, uBoxX, uBoxA)).r) * 96.;
-    float dB = (.5 - texture2D(uSdfB, mapBox(pu, uBoxX, uBoxB)).r) * 96.;
+    vec4 fA = texture2D(uSdfA, mapBox(pu, uBoxX, uBoxA)), fB = texture2D(uSdfB, mapBox(pu, uBoxX, uBoxB));
+    float dA = (.5 - fA.r) * 96., dB = (.5 - fB.r) * 96.;
     float d = mix(dA, dB, uMix) - uGrow + (vnoise(css / (uK * 26.) + uTime * .6) - .5) * 2. * uWobble;
     float pxPerField = uRes.x / 1024.;
     float a = clamp(.5 - d * pxPerField, 0., 1.);
-    float fy = clamp((uv.y - uBoxX.y) / (uBoxX.w - uBoxX.y), 0., 1.);
-    col = mix(col, mix(uFaceBot, uFaceTop, fy), a);
+    float shade = mix(fA.g, fB.g, uMix);                            // each letter's own top→bottom fade, morphing too
+    col = mix(col, mix(uFaceBot, uFaceTop, shade), a);
   }
 
   // ---- soft warm vignette ----
