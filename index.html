@@ -91,6 +91,11 @@
     <aside class="notes">שקף פתיחה.</aside>
   </section>
 
+  <section data-scene="year" data-year="2026" data-mono="off" data-travel="depth"
+           data-posters="Avatar: Fire and Ash; Dune: Part Two; Avengers: Endgame; The Lion King; Interstellar; Gravity">
+    <aside class="notes">2026. הקליק הבא: חוזרים אחורה בזמן.</aside>
+  </section>
+
   <section data-scene="year" data-year="1968">
     <aside class="notes">1968.</aside>
   </section>
@@ -1208,7 +1213,7 @@ const BG_SPEED  = 1;     // background flow speed
 const GRUNGE    = 1;     // 0 = clean, 1 = default, 1.5 = filthy
 const GRAIN     = 1;     // 0 – 1.5
 const GRAIN_FPS = 12;    // grain / dust / flicker rate
-const ANIM_FPS  = 120;   // animation frame rate (motion is drawn at the screen's rate up to this; 24 = stepped film motion)
+const ANIM_FPS  = 60;    // animation frame rate (motion is drawn at the screen's rate up to this; 24 = stepped film motion)
 const WEAVE     = 1;     // frame jitter
 
 // intro (white screen → square → cube → circle → world → title)
@@ -1243,6 +1248,13 @@ const CARD_X          = 0.265;      // picture centre (share of width)
 const PAPER_FPS   = 8;
 const PAPER_WIDTH = 0.4;            // share of slide width
 
+// 2026 → 1968: the camera flies back through the years, set in depth
+const DEPTH_YEARS = [2026, 2020, 2016, 2012, 2006, 2000, 1995, 1989, 1982, 1976, 1972, 1968];
+const DEPTH = { retract: 0.5, hop: 0.62, far: 3.2 };   // seconds; hop = time per year; far = how many years ahead are visible
+const DEPTH_MEDIA = {};             // optional pictures floating with a year, e.g. { 2009: ['avatar'] } (names in the media folder)
+// posters behind a year (data-posters="Title; Title; ..."): media named poster-<title-in-lowercase-with-dashes>
+const POSTER_H = 0.5;               // poster height (share of slide height)
+
 // title → year transition: liquid morph (blur + dissolve + levels) in place; colour drains to B&W
 const MORPH_DURATION = 2.85;         // seconds
 /* =============================================================================== */
@@ -1259,8 +1271,8 @@ const [scv, sctx] = mk();   // shapes (tone-encoded, read by the shader)
 const [bcv, bctx] = mk();   // soft-shadow buffer
 const [mcv, mctx] = mk();   // morph buffer
 const [vcv, vctx] = mk();   // media layer (composited after the film effect, untouched by it)
-let mediaOn = false, mediaWas = false;
-const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+let mediaOn = false, mediaWas = false, shapesOn = false, shapesWas = true;
+let DPR = Math.min(window.devicePixelRatio || 1, /[?&]q=low/.test(location.search) ? 0.75 : 1.25);   // drops by itself on slow computers
 let W = 1600, H = 900, k = 1;
 const FRAME = 1000 / ANIM_FPS;
 const SMEAR_DT = 1000 / 24;          // the stretch-smear measures motion over one film frame, whatever the frame rate
@@ -1347,6 +1359,10 @@ function buildScenes() {
     }
     const sc = kind === 'year'
       ? { kind, year: d.year || '', letters: layoutYear(d.year || ''), cube: d.cube === 'on', mono: d.mono === 'off' ? 0 : 1,
+          posters: (d.posters || '').split(';').map(x => x.trim()).filter(Boolean).map(t => {
+            const name = 'poster-' + t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            return { title: t, m: MEDIA_LIST[name] ? loadMedia(name) : null }; }),
+          depart: d.travel || '', arrive: d.arrive || '',
           imgs: (d.imgs || '').split(',').map(x => x.trim()).filter(Boolean).map(x => (old[n] && old[n].imgs && old[n].imgs.find(m => m.src === x)) || loadMedia(x)) }
       : { kind, letters: layoutTitle(d.top || '', d.bottom || ''), cube: d.cube !== 'off', mono: d.mono === 'on' ? 1 : 0 };
     sc.t0 = old[n] ? old[n].t0 : 0;      // when this scene's animation started
@@ -1435,6 +1451,7 @@ function softShadow(list, alpha) {
 /* ---------- the cube ---------- */
 // o = { dx, dy (share of W), spin (extra radians), vx (px moved this frame, for the smear) }
 function drawShape(S, T, o = { dx: 0, dy: 0, spin: 0, vx: 0 }) {
+  shapesOn = true;
   const [V, F] = GEO[S.type];
   const a = (T / 1000) * S.spin + 0.6 + o.spin, tl = S.tilt;
   const ca = Math.cos(a), sa = Math.sin(a), ct = Math.cos(tl), st = Math.sin(tl);
@@ -1547,6 +1564,161 @@ function drawCards(scene, el, lay, out) {
     mediaOn = true;
   });
 }
+
+/* ---------- posters behind a year ---------- */
+function drawPosters(scene, el, out = 0) {
+  const P = scene.posters; if (!P || !P.length) return;
+  const n = P.length, T = performance.now(), ph = POSTER_H * H, pw = ph * 2 / 3;
+  const span = Math.min(W * 0.96 - pw, (pw * 0.86) * (n - 1));
+  P.forEach((p, i) => {
+    const f = n > 1 ? i / (n - 1) : 0.5, c = f - 0.5;
+    const e = easeOutQuint(clamp01((el - 0.45 - 0.09 * Math.abs(c) * n) / 1.1));
+    if (e <= 0.001) return;
+    const depth = 0.86 + 0.14 * Math.cos(c * Math.PI);                       // middle ones a bit closer
+    const x = W / 2 - span / 2 + f * span, y = H / 2 + c * c * 0.22 * H + Math.sin(T / 1000 * 0.6 + i * 1.7) * 0.006 * H + (1 - e) * 0.35 * H;
+    const rot = (c * 10 + Math.sin(T / 1000 * 0.4 + i) * 0.4) * Math.PI / 180;
+    tctx.save(); tctx.globalAlpha = clamp01(e * 1.6) * (1 - out);
+    tctx.translate(x, y); tctx.rotate(rot); tctx.scale(depth, depth);
+    tctx.shadowColor = 'rgba(0,0,0,0.55)'; tctx.shadowBlur = 30 * k * DPR; tctx.shadowOffsetY = 14 * k * DPR;
+    const img = p.m && (mediaEl(p.m), mediaReady(p.m)) ? p.m.el : null;
+    if (img) {
+      const ar = img.naturalWidth / img.naturalHeight; let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0;
+      if (ar > 2 / 3) { sw = sh * 2 / 3; sx = (img.naturalWidth - sw) / 2; } else { sh = sw * 3 / 2; sy = (img.naturalHeight - sh) / 2; }
+      tctx.drawImage(img, sx, sy, sw, sh, -pw / 2, -ph / 2, pw, ph);
+    } else {                                                                    // placeholder until the poster arrives
+      const g = tctx.createLinearGradient(0, -ph / 2, 0, ph / 2); g.addColorStop(0, '#2c2f3a'); g.addColorStop(1, '#0d0e12');
+      tctx.fillStyle = g; tctx.fillRect(-pw / 2, -ph / 2, pw, ph);
+      tctx.shadowColor = 'transparent';
+      tctx.fillStyle = 'rgba(255,255,255,0.85)'; tctx.textAlign = 'center'; tctx.direction = 'ltr';
+      let fs = pw * 0.11; tctx.font = `${fs}px ${CAPTION_FONT}`;
+      const words = p.title.toUpperCase().split(' '), lines = []; let cur = '';
+      words.forEach(w => { const t = cur ? cur + ' ' + w : w; if (tctx.measureText(t).width > pw * 0.82 && cur) { lines.push(cur); cur = w; } else cur = t; });
+      if (cur) lines.push(cur);
+      lines.forEach((l, j) => tctx.fillText(l, 0, ph * 0.3 + (j - lines.length + 1) * fs * 1.1));
+      tctx.font = `${pw * 0.05}px ${CAPTION_FONT}`; tctx.fillStyle = 'rgba(255,255,255,0.35)'; tctx.fillText('POSTER', 0, -ph * 0.38);
+    }
+    tctx.shadowColor = 'transparent';
+    tctx.fillStyle = 'rgba(0,0,0,0.28)'; tctx.fillRect(-pw / 2, -ph / 2, pw, ph);       // sit back behind the year
+    tctx.restore();
+  });
+}
+
+/* ---------- era objects: 3D models in the style of their time (wireframe → flat → smooth → glossy) ---------- */
+const MESH = (() => {
+  const t = (1 + Math.sqrt(5)) / 2;
+  let V = [[-1,t,0],[1,t,0],[-1,-t,0],[1,-t,0],[0,-1,t],[0,1,t],[0,-1,-t],[0,1,-t],[t,0,-1],[t,0,1],[-t,0,-1],[-t,0,1]];
+  let F = [[0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],[1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],[3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],[4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]];
+  const nrm = v => { const l = Math.hypot(...v); return v.map(c => c / l); };
+  V = V.map(nrm);
+  const ico0 = { V: V.slice(), F: F.slice() };
+  const mid = {}, getMid = (a, b) => { const key = a < b ? a + ':' + b : b + ':' + a; if (mid[key] != null) return mid[key];
+    V.push(nrm([(V[a][0] + V[b][0]) / 2, (V[a][1] + V[b][1]) / 2, (V[a][2] + V[b][2]) / 2])); return mid[key] = V.length - 1; };
+  const F2 = []; F.forEach(([a, b, c]) => { const x = getMid(a, b), y = getMid(b, c), z = getMid(c, a); F2.push([a, x, z], [b, y, x], [c, z, y], [x, y, z]); });
+  const sphere = { V, F: F2 };
+  const TV = [], TF = [], S1 = 16, S2 = 8;
+  for (let i = 0; i < S1; i++) for (let j = 0; j < S2; j++) { const u = i / S1 * Math.PI * 2, v = j / S2 * Math.PI * 2;
+    TV.push([(0.75 + 0.3 * Math.cos(v)) * Math.cos(u), 0.3 * Math.sin(v), (0.75 + 0.3 * Math.cos(v)) * Math.sin(u)]); }
+  for (let i = 0; i < S1; i++) for (let j = 0; j < S2; j++) { const a = i * S2 + j, b = ((i + 1) % S1) * S2 + j, c = ((i + 1) % S1) * S2 + (j + 1) % S2, d = i * S2 + (j + 1) % S2; TF.push([a, b, c, d]); }
+  const cube = { V: [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map(v => v.map(c => c * 0.68)),
+                 F: [[0,1,2,3],[4,5,6,7],[0,1,5,4],[2,3,7,6],[1,2,6,5],[0,3,7,4]] };
+  return { ico: ico0, sphere, torus: { V: TV, F: TF }, cube };
+})();
+const ERA_LIGHT = (() => { const v = [-0.45, 0.65, 0.62], l = Math.hypot(...v); return v.map(c => c / l); })();
+const ERA_HALF = (() => { const v = [ERA_LIGHT[0], ERA_LIGHT[1], ERA_LIGHT[2] + 1], l = Math.hypot(...v); return v.map(c => c / l); })();
+function eraStyle(y) { return y < 1976 ? 'wire' : y < 1986 ? 'flat' : y < 1996 ? 'smooth' : 'gloss'; }
+function eraObjects(y) {                     // two models per year, placed around it (world units, relative to the year)
+  const kinds = ['cube', 'torus', 'sphere', 'ico'], cols = [[236, 92, 62], [64, 168, 196], [232, 190, 70], [150, 110, 220], [90, 200, 140]];
+  return [0, 1].map(i => ({ mesh: MESH[kinds[(y + i * 3) % 4]], x: (i ? -1 : 1) * (0.42 + jit(y + i) * 0.16), y: (jit(y * 3 + i) - 0.5) * 0.5,
+    z: (jit(y * 7 + i) - 0.5) * 0.5, size: 0.075 + jit(y * 5 + i) * 0.04, spin: 0.4 + jit(y + i * 9) * 0.5, col: cols[(y + i) % cols.length], style: eraStyle(y) }));
+}
+function drawModel(o, cx, cy, R, T, alpha) {
+  const a = T / 1000 * o.spin + o.x * 5, b = 0.5 + 0.3 * Math.sin(T / 1000 * 0.3 + o.y * 7);
+  const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b);
+  const P = o.mesh.V.map(([x, y, z]) => { const x1 = x * ca + z * sa, z1 = -x * sa + z * ca; return [x1, y * cb - z1 * sb, y * sb + z1 * cb]; });
+  tctx.save(); tctx.globalAlpha = alpha; tctx.lineJoin = 'round';
+  if (o.style === 'wire') {
+    tctx.strokeStyle = 'rgba(255,255,255,0.9)'; tctx.lineWidth = Math.max(1, R * 0.018); tctx.beginPath();
+    o.mesh.F.forEach(f => f.forEach((v, j) => { const p = P[v], q = P[f[(j + 1) % f.length]];
+      tctx.moveTo(cx + p[0] * R, cy - p[1] * R); tctx.lineTo(cx + q[0] * R, cy - q[1] * R); }));
+    tctx.stroke(); tctx.restore(); return;
+  }
+  const faces = o.mesh.F.map(f => {
+    const v0 = P[f[0]], v1 = P[f[1]], v2 = P[f[2]];
+    const e1 = [v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]], e2 = [v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]];
+    let n = [e1[1]*e2[2]-e1[2]*e2[1], e1[2]*e2[0]-e1[0]*e2[2], e1[0]*e2[1]-e1[1]*e2[0]];
+    const c = f.reduce((s, i) => [s[0]+P[i][0], s[1]+P[i][1], s[2]+P[i][2]], [0,0,0]).map(v => v / f.length);
+    if (n[0]*c[0] + n[1]*c[1] + n[2]*c[2] < 0) n = n.map(q => -q);
+    const l = Math.hypot(...n) || 1; n = n.map(q => q / l);
+    return { f, n, z: c[2] };
+  }).filter(q => q.n[2] > 0).sort((p, q) => p.z - q.z);
+  const base = o.style === 'flat' ? [170, 176, 190] : o.col;
+  faces.forEach(({ f, n }) => {
+    const d = Math.max(0, n[0]*ERA_LIGHT[0] + n[1]*ERA_LIGHT[1] + n[2]*ERA_LIGHT[2]);
+    let lit = 0.22 + 0.78 * d, spec = 0;
+    if (o.style === 'gloss') spec = Math.pow(Math.max(0, n[0]*ERA_HALF[0] + n[1]*ERA_HALF[1] + n[2]*ERA_HALF[2]), 28) * 0.9;
+    const col = base.map(v => Math.round(Math.min(255, v * lit + 255 * spec)));
+    tctx.beginPath(); f.forEach((v, j) => { const p = P[v]; j ? tctx.lineTo(cx + p[0] * R, cy - p[1] * R) : tctx.moveTo(cx + p[0] * R, cy - p[1] * R); });
+    tctx.closePath(); tctx.fillStyle = `rgb(${col})`; tctx.fill(); tctx.strokeStyle = `rgb(${col})`; tctx.lineWidth = 0.8; tctx.stroke();
+  });
+  tctx.restore();
+}
+function drawDepthYear(letters, sx, sy, sc, alpha) {
+  tctx.save(); tctx.globalAlpha = alpha;
+  const off = 0.012 * W * sc;
+  for (const L of letters) drawLetter(tctx, L, sx + (L.cx - W / 2) * sc + off, sy + (L.cy - H / 2) * sc + off, sc, 0, 0, 0, 'flat', '#0b0806');
+  for (const L of letters) drawLetter(tctx, L, sx + (L.cx - W / 2) * sc, sy + (L.cy - H / 2) * sc, sc, 0, 0, 0, 'face');
+  tctx.restore();
+}
+// 2026 → 1968: the camera travels back through the years
+function depthList(A, B) {
+  const hi = Math.max(+A.year, +B.year), lo = Math.min(+A.year, +B.year);
+  const ys = [...new Set([hi, ...DEPTH_YEARS.filter(y => y < hi && y > lo), lo])].sort((a, b) => b - a);
+  return ys;
+}
+const depthDur = (A, B) => DEPTH.retract + (depthList(A, B).length - 1) * DEPTH.hop;
+function trDepth(A, B, s, sPrev, T) {
+  const ys = depthList(A, B), n = ys.length, land = depthDur(A, B);
+  const out = { mono: lerp(A.mono, B.mono, smooth(land * 0.62, land * 0.97, s)), goo: 0, thresh: 0.5, morph: 0 };
+  if (s < DEPTH.retract) {                                   // 2026 lets go of its shadow, posters start to drift
+    drawPosters(A, 99); drawYear(A, 99, { shadowEl: YEAR_SHADOW_GROW * (1 - easeInOut(s / DEPTH.retract)) });
+    return out;
+  }
+  if (s >= land) { drawYear(B, s - land); return out; }
+  const p = easeInOutCubic((s - DEPTH.retract) / (land - DEPTH.retract));
+  const cam = p * (n - 1);                                   // camera depth, in years
+  const items = [];
+  ys.forEach((y, i) => {
+    const d = i - cam + 1;                                   // distance from the camera (1 = exactly on the slide)
+    if (d < 0.08 || d > DEPTH.far + 1) return;
+    const sc = 1 / d, edge = i === 0 || i === n - 1;
+    const side = i % 2 ? 1 : -1;
+    const ox = edge ? 0 : side * (0.5 + 0.12 * jit(y)), oy = edge ? 0 : (i % 4 < 2 ? -1 : 1) * (0.14 + 0.08 * jit(y * 2));
+    const fadeFar = 1 - smooth(DEPTH.far - 0.6, DEPTH.far + 1, d), fadeNear = i === n - 1 ? 1 : i === 0 ? smooth(0.32, 0.75, d) : smooth(0.12, 0.4, d);
+    items.push({ d, draw: () => {
+      const sx = W / 2 + ox * W * sc, sy = H / 2 + oy * H * sc, a = fadeFar * fadeNear;
+      if (i === 0 && A.posters && A.posters.length) {
+        tctx.save(); tctx.translate(sx, sy); tctx.scale(sc, sc); tctx.translate(-W / 2, -H / 2); drawPosters(A, 99, 1 - a); tctx.restore();
+      }
+      drawDepthYear(tlLetters(y), sx, sy, sc, a);
+    } });
+    if (!edge) eraObjects(y).forEach((o, j) => {
+      const od = d + o.z * 0.35; if (od < 0.1) return;
+      const osc = 1 / od, wx = ox + side * (j ? 0.12 : 0.42), wy = oy + (j ? 0.24 : -0.22) * (oy < 0 ? -1 : 1);   // always on the outside of their year
+      items.push({ d: od, draw: () => drawModel(o, W / 2 + wx * W * osc, H / 2 + wy * H * osc, o.size * W * osc, T,
+                                               (1 - smooth(DEPTH.far - 0.6, DEPTH.far + 1, od)) * smooth(0.18, 0.45, od)) });
+    });
+    (DEPTH_MEDIA[y] || []).forEach((name, j) => {
+      const m = loadMediaCached(name); mediaEl(m); if (!mediaReady(m)) return;
+      items.push({ d: d + 0.05, draw: () => { const im = m.el, h = 0.22 * H * sc, w = h * im.naturalWidth / im.naturalHeight;
+        const x = W / 2 + (ox + (j ? -0.3 : 0.3)) * W * sc, yy = H / 2 + (oy - 0.18) * H * sc;
+        tctx.save(); tctx.globalAlpha = fadeFar * fadeNear; tctx.drawImage(im, x - w / 2, yy - h / 2, w, h); tctx.restore(); } });
+    });
+  });
+  items.sort((a, b) => b.d - a.d).forEach(it => it.draw());
+  return Object.assign(out, { bgZoom: 1 + 0.45 * Math.sin(Math.PI * p), bgOff: p * 0.6 });
+}
+const mediaCache = {};
+const loadMediaCached = n => mediaCache[n] || (mediaCache[n] = loadMedia(n));
 
 /* ---------- paper overlay: a print that unfolds in stop-motion and wiggles (clean layer) ---------- */
 const [pcv, pctx] = mk();
@@ -1943,7 +2115,7 @@ function renderIdle(scene, T) {
   if (scene.kind === 'world') return { mono: 0, goo: 0, thresh: 0.5, morph: 0 };
   if (scene.kind === 'media') { mediaIdle(scene, T); return { mono: scene.mono, goo: 0, thresh: 0.5, morph: 0 }; }
   if (scene.kind === 'paper') { paperIdle(scene, T); return { mono: scene.base ? scene.base.mono : 0, goo: 0, thresh: 0.5, morph: 0 }; }
-  if (scene.kind === 'year') { drawYear(scene, (T - scene.t0) / 1000); return { mono: scene.mono, goo: 0, thresh: 0.5, morph: 0 }; }
+  if (scene.kind === 'year') { drawPosters(scene, (T - scene.t0) / 1000); drawYear(scene, (T - scene.t0) / 1000); return { mono: scene.mono, goo: 0, thresh: 0.5, morph: 0 }; }
   const list = scene.letters.map(L => {
     const dy = floatDy(L, T), dyPrev = floatDy(L, T - SMEAR_DT);
     return { L, px: L.cx, py: L.cy + dy, sc: 1, vx: 0, vy: dy - dyPrev, slen: idleShadow(scene, L, T) * SHADOW_DEPTH * W };
@@ -2035,7 +2207,7 @@ function renderMorph(A, B, s, sPrev, T) {
   } else {
     // 3. number formed; its long shadow extends (and on the way back, pulls in)
     const el = trans && trans.rev ? YEAR_SHADOW_GROW * clamp01((s - MORPH.formed) / (MORPH_DURATION - MORPH.formed)) : s - MORPH.formed;
-    drawYear(B, el);
+    drawPosters(B, el); drawYear(B, el);
   }
   return out;
 }
@@ -2055,7 +2227,10 @@ const TRANSITIONS = {
                                 formedAt: PAPER_AWAY + SINK + FLY.zoomIn[1] - FLY.retract },
   'year>year':                { pick: (A, B) => A.year === B.year
                                   ? { fn: trYearColor, dur: () => 1.2, t0: (A, B, now) => now - YEAR_SHADOW_GROW * 1000 - 50 }
-                                  : { fn: trFly, dur: () => FLY.zoomIn[1] + YEAR_SHADOW_GROW, formedAt: FLY.zoomIn[1] } },
+                                  : (A.depart === 'depth' || B.arrive === 'depth')
+                                    ? { fn: trDepth, dur: (A, B) => depthDur(A, B) + YEAR_SHADOW_GROW, formedAt: 0,
+                                        t0: (A, B, now, dur) => now + (dur - YEAR_SHADOW_GROW) * 1000 }
+                                    : { fn: trFly, dur: () => FLY.zoomIn[1] + YEAR_SHADOW_GROW, formedAt: FLY.zoomIn[1] } },
 };
 
 /* ---------- navigation ---------- */
@@ -2084,6 +2259,7 @@ function onSlideChange(from, to, now) {
 /* ---------- one frame (stepped at ANIM_FPS) ---------- */
 let monoNow = 0;
 function render(T, now) {
+  shapesOn = false;
   vctx.setTransform(1, 0, 0, 1, 0, 0); vctx.clearRect(0, 0, vcv.width, vcv.height); vctx.setTransform(DPR, 0, 0, DPR, 0, 0); mediaOn = false;
   sctx.setTransform(DPR, 0, 0, DPR, 0, 0); sctx.clearRect(0, 0, W, H);
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); tctx.clearRect(0, 0, W, H);
@@ -2144,6 +2320,7 @@ uniform vec3 uBase, uDeep, uLight, uHot;
 float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.-2.*f);
   return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y); }
+float fbm2(vec2 p){ return .5 * vnoise(p) + .25 * vnoise(mat2(.8,.6,-.6,.8) * p * 2.02 + 3.1); }
 float fbm(vec2 p){ float v = 0., a = .5; mat2 R = mat2(.8,.6,-.6,.8); for(int i=0;i<5;i++){ v += a*vnoise(p); p = R*p*2.02; a *= .5; } return v; }
 float fbmSoft(vec2 p){ float v = 0., a = .5; mat2 R = mat2(.8,.6,-.6,.8); for(int i=0;i<3;i++){ v += a*vnoise(p); p = R*p*2.02; a *= .5; } return v / .875; }
 vec2 mapBox(vec2 p, vec4 from, vec4 to){ return to.xy + (p - from.xy) * (to.zw - to.xy) / (from.zw - from.xy); }
@@ -2178,7 +2355,7 @@ void main(){
 
   // ---- text layer with worn edges ----
   vec2 ep = css / (uK * 4.5);
-  vec2 disp = (vec2(fbm(ep), fbm(ep + 31.7)) - .5) * 1.1 * uGrunge * uK * uDpr / uRes;
+  vec2 disp = (vec2(fbm2(ep), fbm2(ep + 31.7)) / .75 - .5) * 1.1 * uGrunge * uK * uDpr / uRes;
   vec4 tx = texture2D(uText, uv + disp);
   if (uGoo > 0.) {                                                  // morphing: blurred shapes cut back to crisp, gooey edges
     float ga = smoothstep(uThresh - .04, uThresh + .04, tx.a);
@@ -2210,7 +2387,7 @@ void main(){
   col = mix(col, bw, uMono);
 
   // ---- uneven exposure ----
-  float st = fbm(css / (uK * 230.) + 7.);
+  float st = fbm2(css / (uK * 230.) + 7.) / .75;
   col *= mix(1., .8 + .4 * st, .4 * uGrunge);
 
   // ---- grain ----
@@ -2300,8 +2477,9 @@ let lastStep = -1, lastGrain = 0, frame = 0, seed = 1, scrSeed = 1, flicker = 1,
 const t0 = performance.now();
 function drawLayers(T) {
   render(T, T);
-  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shapeTex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scv);
+  if (shapesOn || shapesWas) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shapeTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scv); }
+  shapesWas = shapesOn;
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tcv);
   if (mediaOn || mediaWas) { gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, mediaTex);
@@ -2309,7 +2487,26 @@ function drawLayers(T) {
   gl.uniform1f(U('uMediaOn'), mediaOn ? 1 : 0); mediaWas = mediaOn;
   gl.activeTexture(gl.TEXTURE0);
 }
+let perfEma = 16, perfLast = 0, perfCheck = 0;
+function setQuality(d) {
+  DPR = d;
+  const r = film.getBoundingClientRect();
+  for (const c of [film, tcv, scv, bcv, mcv, icv, vcv, pcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  gl.viewport(0, 0, film.width, film.height); gl.uniform2f(U('uRes'), film.width, film.height); gl.uniform1f(U('uDpr'), DPR);
+  const clear = sc => { if (!sc) return; sc.shadowCache = null; sc.sheets = null; (sc.letters || []).forEach(L => { L.img = null; L.face = null; }); };
+  scenes.forEach(clear); Object.values(tlCache).forEach(ls => ls.forEach(L => { L.img = null; }));
+  shapesWas = true; mediaWas = true; lastStep = -1;
+}
+function watchPerf(now) {
+  if (perfLast) perfEma = perfEma * 0.95 + Math.min(100, now - perfLast) * 0.05;
+  perfLast = now;
+  if (now - perfCheck > 2500 && !trans && !document.hidden) {
+    perfCheck = now;
+    if (perfEma > 26 && DPR > 0.55) setQuality(Math.max(0.55, +(DPR * 0.8).toFixed(2)));
+  }
+}
 function loop(now) {
+  watchPerf(now);
   const step = Math.floor(now / FRAME);
   if (step !== lastStep) { lastStep = step; drawLayers(step * FRAME); }
   if (now - lastGrain > 1000 / GRAIN_FPS) {
@@ -2361,12 +2558,16 @@ function buildEditor() {
   renderThumbs();
 }
 // draw every slide once, in the browser, from the real engine → the panel always matches the slides
+let thumbsWanted = false;
 function renderThumbs() {
+  if (!thumbsWanted) return;
   const keepCur = cur, keepTrans = trans, keepT0 = scenes.map(s => s.t0);
-  let pending = false;
+  let pending = false, drew = 0;
   const T = Math.floor(performance.now() / FRAME) * FRAME;
   scenes.forEach((sc, i) => {
     const th = thumbs[i]; if (!th || th.done) return;
+    if (drew >= 2) { pending = true; return; }      // a couple per frame, so the page never freezes
+    drew++;
     const deps = [sc.media && sc.src ? sc.media : null, ...(sc.imgs || [])].filter(Boolean);
     if (deps.some(m => (mediaEl(m), !mediaReady(m)))) { pending = true; return; }
     trans = null; cur = i; sc.t0 = T - 60000;
@@ -2378,7 +2579,7 @@ function renderThumbs() {
   });
   scenes.forEach((s, i) => { s.t0 = keepT0[i]; });
   cur = keepCur; trans = keepTrans; lastStep = -1;
-  if (pending) setTimeout(renderThumbs, 700);
+  if (pending) setTimeout(renderThumbs, drew ? 30 : 600);
 }
 function selectThumb(i) {
   thumbs.forEach((t, n) => t.it.classList.toggle('sel', n === i));
@@ -2412,7 +2613,7 @@ const btnSlides = document.getElementById('btn-slides');
 btnSlides.onclick = () => {
   const open = document.body.classList.toggle('slides-open');
   btnSlides.textContent = open ? 'Hide' : 'Slides';
-  placeFilm(); if (open) selectThumb(cur);
+  placeFilm(); if (open) { selectThumb(cur); thumbsWanted = true; renderThumbs(); }
 };
 document.addEventListener('keydown', e => {
   if (e.key === 'F5') { e.preventDefault(); present(e.shiftKey ? cur : 0); return; }
