@@ -117,11 +117,18 @@
   <section data-scene="year" data-year="1976" data-mono="off" data-imgs="y1976-futureworld"></section>
   <section data-scene="media" data-year="1976" data-mono="off" data-caption="Futureworld (1976)"></section>
 
-  <section data-scene="year" data-year="1982" data-mono="off" data-imgs="y1982-tron,y1982-startrek"></section>
+  <section data-scene="year" data-year="1982" data-mono="off" data-imgs="y1982-tron"></section>
   <section data-scene="media" data-year="1982" data-mono="off" data-caption="Tron (1982)"></section>
 
-  <section data-scene="year" data-year="1986" data-mono="off" data-imgs="y1986-pixar,y1986-luxo"></section>
-  <section data-scene="media" data-year="1986" data-mono="off" data-caption="Pixar · Luxo Jr. (1986)"></section>
+  <section data-scene="year" data-year="1982" data-mono="off" data-imgs="y1982-startrek"></section>
+  <section data-scene="media" data-year="1982" data-mono="off" data-caption="Star Trek II: The Wrath of Khan (1982)"></section>
+
+  <section data-scene="year" data-year="1986" data-mono="off" data-imgs="y1986-pixar"></section>
+  <section data-scene="media" data-year="1986" data-mono="off" data-caption="Pixar (1986)"></section>
+
+  <section data-scene="paper" data-year="1986" data-src="y1986-luxo" data-caption="Luxo Jr. (1986)">
+    <aside class="notes">הסרט הראשון של פיקסאר.</aside>
+  </section>
 
   <section data-scene="year" data-year="1988" data-mono="off" data-imgs="y1988-pixar-software"></section>
   <section data-scene="media" data-year="1988" data-mono="off" data-caption="RenderMan (1988)"></section>
@@ -1201,7 +1208,7 @@ const BG_SPEED  = 1;     // background flow speed
 const GRUNGE    = 1;     // 0 = clean, 1 = default, 1.5 = filthy
 const GRAIN     = 1;     // 0 – 1.5
 const GRAIN_FPS = 12;    // grain / dust / flicker rate
-const ANIM_FPS  = 24;    // every animation and transition is stepped at this rate
+const ANIM_FPS  = 120;   // animation frame rate (motion is drawn at the screen's rate up to this; 24 = stepped film motion)
 const WEAVE     = 1;     // frame jitter
 
 // intro (white screen → square → cube → circle → world → title)
@@ -1256,6 +1263,7 @@ let mediaOn = false, mediaWas = false;
 const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
 let W = 1600, H = 900, k = 1;
 const FRAME = 1000 / ANIM_FPS;
+const SMEAR_DT = 1000 / 24;          // the stretch-smear measures motion over one film frame, whatever the frame rate
 
 /* ---------- easing ---------- */
 const clamp01 = x => Math.max(0, Math.min(1, x));
@@ -1476,12 +1484,12 @@ function glyphImage(L) {                     // white silhouette of one letter, 
 function yearLayout(scene, el) {              // 0 = centred, 1 = moved aside for its pictures
   return scene.imgs && scene.imgs.length ? easeInOutCubic(clamp01(el / 0.75)) : 0;
 }
-function drawYear(scene, el) {               // el = seconds since the number formed
+function drawYear(scene, el, o = {}) {       // el = seconds since the number formed; o.shadowEl, o.cardOut (0..1)
   const lay = yearLayout(scene, el), ys = lerp(1, YEAR_SIDE_SCALE, lay), ox = YEAR_SIDE_X * W * lay;
   const PX = L => W / 2 + (L.cx - W / 2) * ys + ox, PY = L => H / 2 + (L.cy - H / 2) * ys;
   const ang = (90 - YEAR_SHADOW_ANGLE) * Math.PI / 180, dx = Math.cos(ang), dy = Math.sin(ang);
   const full = Math.hypot(W, H) * 1.05;      // long enough to leave the frame from anywhere
-  const len = full * easeInOut(clamp01(el / YEAR_SHADOW_GROW));
+  const len = full * easeInOut(clamp01((o.shadowEl != null ? o.shadowEl : el) / YEAR_SHADOW_GROW));
   if (len > 0.5) {
     const cacheOk = scene.shadowCache && scene.shadowKey === ys + ':' + ox;
     if (len >= full - 0.5 && cacheOk) {
@@ -1509,26 +1517,28 @@ function drawYear(scene, el) {               // el = seconds since the number fo
     }
   }
   for (const L of scene.letters) drawLetter(tctx, L, PX(L), PY(L), ys, 0, 0, 0, 'face');
-  if (scene.imgs && scene.imgs.length) drawCards(scene, el, lay);
+  if (scene.imgs && scene.imgs.length) drawCards(scene, el, lay, o.cardOut || 0);
 }
+const yearSide = scene => { const lay = scene.imgs && scene.imgs.length ? 1 : 0; return { sc: lerp(1, YEAR_SIDE_SCALE, lay), ox: YEAR_SIDE_X * W * lay }; };
 // the year's pictures, as prints on the left (clean layer: no film effect)
-function drawCards(scene, el, lay) {
+const easeOutQuint = x => 1 - Math.pow(1 - clamp01(x), 5);
+function drawCards(scene, el, lay, out) {
   const n = scene.imgs.length, T = performance.now();
-  const box = [CARD_BOX[0] * W * (n > 1 ? 0.8 : 1), CARD_BOX[1] * H * (n > 1 ? 0.8 : 1)];
-  const spots = n > 1 ? [[-0.05, -0.035, -6], [0.055, 0.05, 5]] : [[0, 0, -3]];
   scene.imgs.forEach((m, i) => {
     mediaEl(m); if (!mediaReady(m)) return;
-    const e = clamp01((el - 0.2 - 0.14 * i) / 0.6) * lay, ea = easeOutBack(e);
-    if (e <= 0.001) return;
+    const e = easeOutQuint(clamp01((el - 0.25 - 0.14 * i) / 0.9)) * (lay > 0 ? 1 : 0);   // in: decelerates, no bounce
+    const x = easeInCubic(clamp01(out));                                                    // out: accelerates away
+    if (e <= 0.001 || x >= 0.999) return;
     const im = m.el, ar = im.naturalWidth / im.naturalHeight;
-    let cw = box[0], ch = cw / ar; if (ch > box[1]) { ch = box[1]; cw = ch * ar; }
+    let cw = CARD_BOX[0] * W, ch = cw / ar; if (ch > CARD_BOX[1] * H) { ch = CARD_BOX[1] * H; cw = ch * ar; }
     const pad = Math.max(5 * k, 0.03 * Math.min(cw, ch));
-    const sp = spots[Math.min(i, spots.length - 1)];
     const bob = Math.sin(T / 1000 * 0.7 + i * 2.1) * 0.004 * W;
-    const cx = CARD_X * W + sp[0] * W, cy = H / 2 + sp[1] * H + bob + (1 - ea) * 0.75 * H;
-    const rot = (sp[2] + (1 - ea) * -16 + Math.sin(T / 1000 * 0.5 + i) * 0.35) * Math.PI / 180;
-    vctx.save(); vctx.globalAlpha = clamp01(e * 3);
-    vctx.translate(cx, cy); vctx.rotate(rot);
+    const travel = H * 0.5 + ch;                                                           // enough to fully leave the frame
+    const cx = CARD_X * W - x * 0.04 * W, cy = H / 2 + bob + (1 - e) * travel + x * travel;
+    const rot = (-3 + (1 - e) * -9 + x * -7 + Math.sin(T / 1000 * 0.5 + i) * 0.35) * Math.PI / 180;
+    const sc = lerp(0.92, 1, e) * lerp(1, 0.96, x);
+    vctx.save(); vctx.globalAlpha = clamp01(e * 2.5);
+    vctx.translate(cx, cy); vctx.rotate(rot); vctx.scale(sc, sc);
     vctx.shadowColor = 'rgba(0,0,0,0.5)'; vctx.shadowBlur = 34 * k * DPR; vctx.shadowOffsetY = 16 * k * DPR;
     vctx.fillStyle = '#f6f3ec'; vctx.fillRect(-cw / 2 - pad, -ch / 2 - pad, cw + pad * 2, ch + pad * 2);
     vctx.shadowColor = 'transparent';
@@ -1545,7 +1555,7 @@ function paperSheets(scene) {
   if (!mediaReady(m)) return null;
   const key = W + ':' + DPR;
   if (scene.sheets && scene.sheets.key === key) return scene.sheets;
-  const pw = PAPER_WIDTH * W, mg = 0.06 * pw, im = m.el, phW = pw - mg * 2, phH = phW * im.naturalHeight / im.naturalWidth;
+  const ar0 = m.el.naturalWidth / m.el.naturalHeight, pw = Math.min(PAPER_WIDTH * W, 0.76 * H / (0.22 + 0.88 / ar0)), mg = 0.06 * pw, im = m.el, phW = pw - mg * 2, phH = phW * im.naturalHeight / im.naturalWidth;
   const ph = mg + phH + 0.16 * pw;
   const mkSheet = front => {
     const c = document.createElement('canvas'); c.width = Math.ceil(pw * DPR); c.height = Math.ceil(ph * DPR);
@@ -1844,17 +1854,18 @@ function mediaIdle(scene, T) {
   drawHeader(scene, HEADER_SCALE, HEADER_Y * H);
   drawMedia(scene, 1, 0, 1, 1, T);
 }
-// year → media: long shadow pulls back in, the year shrinks to the top, the frame rises in, then the caption
+// year → media: picture eases out and the shadow pulls in, the year glides straight to the top, the frame rises in
 function trYearMedia(A, B, s, sPrev, T) {
-  const retract = easeInOut(clamp01(s / 0.6));
-  if (s < 0.6) drawYear(A, YEAR_SHADOW_GROW * (1 - retract));
+  const side = yearSide(A);
+  if (s < 0.6) drawYear(A, 99, { shadowEl: YEAR_SHADOW_GROW * (1 - easeInOut(s / 0.6)), cardOut: s / 0.75 });
   else {
-    const m = easeInOutCubic(clamp01((s - 0.6) / 0.8));
-    drawHeader(B, lerp(1, HEADER_SCALE, m), lerp(H / 2, HEADER_Y * H, m));   // (pictures already re-centred the year)
+    drawCards(A, 99, 1, (s) / 0.75);
+    const m = easeInOutCubic(clamp01((s - 0.6) / 0.85));
+    drawHeader(B, lerp(side.sc, HEADER_SCALE, m), lerp(H / 2, HEADER_Y * H, m), lerp(side.ox, 0, m));
   }
-  const f = clamp01((s - 1.05) / 0.7);
-  const capA = easeInOut(clamp01((s - 1.45) / 0.5));
-  drawMedia(B, easeInOut(clamp01(f / 0.6)), (1 - easeOutBack(f)) * 0.05 * H, lerp(0.94, 1, easeOutBack(f)), capA, T);
+  const f = easeOutQuint(clamp01((s - 1.0) / 0.9));
+  const capA = easeInOut(clamp01((s - 1.4) / 0.55));
+  drawMedia(B, clamp01(f * 1.6), (1 - f) * 0.07 * H, lerp(0.96, 1, f), capA, T);
   return { mono: lerp(A.mono, B.mono, 0.5), goo: 0, thresh: 0.5, morph: 0 };
 }
 
@@ -1906,11 +1917,11 @@ function trFly(A, B, s, sPrev, T) {
   return Object.assign(out, { bgOff: camX * 0.18, bgZoom: 1 + (1 - z) * 0.75 });
 }
 // media → a different year: picture and caption sink away, the year grows back to full size, then the timeline flight
-const SINK = 1.0;                         // seconds for the picture to leave and the year to grow back
+const SINK = 1.1;                         // seconds for the picture to leave and the year to grow back
 function trMediaFly(A, B, s, sPrev, T) {
   if (s < SINK) {
     const e = easeInOutCubic(clamp01(s / SINK));
-    const out = clamp01(s / (SINK * 0.85)), drop = out * out * out;              // ease-in: starts gently, leaves fast
+    const out = clamp01(s / SINK), drop = easeInCubic(out);                       // eases away and keeps going
     const R = mediaRect();
     drawHeader(A, lerp(HEADER_SCALE, 1, e), lerp(HEADER_Y * H, H / 2, e));
     drawMedia(A, 1, drop * (H - R.y + 0.06 * H), 1, 1 - easeInOut(out), T);
@@ -1934,7 +1945,7 @@ function renderIdle(scene, T) {
   if (scene.kind === 'paper') { paperIdle(scene, T); return { mono: scene.base ? scene.base.mono : 0, goo: 0, thresh: 0.5, morph: 0 }; }
   if (scene.kind === 'year') { drawYear(scene, (T - scene.t0) / 1000); return { mono: scene.mono, goo: 0, thresh: 0.5, morph: 0 }; }
   const list = scene.letters.map(L => {
-    const dy = floatDy(L, T), dyPrev = floatDy(L, T - FRAME);
+    const dy = floatDy(L, T), dyPrev = floatDy(L, T - SMEAR_DT);
     return { L, px: L.cx, py: L.cy + dy, sc: 1, vx: 0, vy: dy - dyPrev, slen: idleShadow(scene, L, T) * SHADOW_DEPTH * W };
   });
   softShadow(list, 1);
@@ -2033,9 +2044,9 @@ const TRANSITIONS = {
   'intro-cube>intro-circle':  { fn: trCubeCircle,  dur: () => 1.3,  formedAt: 1.3 },
   'intro-circle>title':       { fn: trCircleTitle, dur: (A, B) => (typeTimes(B), B.typeEnd + 0.15 + TYPE.settle + 0.05), formedAt: 0 },
   'title>year':               { fn: renderMorph,   dur: () => MORPH_DURATION, formedAt: MORPH.formed },
-  'year>media':               { fn: trYearMedia,   dur: () => 2.0, formedAt: 0 },
+  'year>media':               { fn: trYearMedia,   dur: () => 2.3, formedAt: 0 },
   'media>year':               { pick: (A, B) => A.year === B.year
-                                  ? { fn: (A, B, s, sp, T) => trYearMedia(B, A, 2.0 - s, 2.0 - sp, T), dur: () => 2.0,
+                                  ? { fn: (A, B, s, sp, T) => trYearMedia(B, A, 2.3 - s, 2.3 - sp, T), dur: () => 2.3,
                                       t0: (A, B, now, dur) => now + (dur - YEAR_SHADOW_GROW) * 1000 - 50 }
                                   : { fn: trMediaFly, dur: () => SINK + FLY.zoomIn[1] - FLY.retract + YEAR_SHADOW_GROW,
                                       formedAt: SINK + FLY.zoomIn[1] - FLY.retract } },
@@ -2078,7 +2089,7 @@ function render(T, now) {
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); tctx.clearRect(0, 0, W, H);
   let st;
   if (trans) {
-    const p = clamp01((now - trans.t0) / (trans.dur * 1000)), pPrev = clamp01((now - FRAME - trans.t0) / (trans.dur * 1000));
+    const p = clamp01((now - trans.t0) / (trans.dur * 1000)), pPrev = clamp01((now - SMEAR_DT - trans.t0) / (trans.dur * 1000));
     const s = (trans.rev ? 1 - p : p) * trans.dur, sPrev = (trans.rev ? 1 - pPrev : pPrev) * trans.dur;
     st = trans.tr.fn(trans.A, trans.B, s, sPrev, T);
     if (p >= 1) { cur = trans.to; trans = null; }
@@ -2299,7 +2310,7 @@ function drawLayers(T) {
   gl.activeTexture(gl.TEXTURE0);
 }
 function loop(now) {
-  const step = Math.floor(now / FRAME);                 // 24 fps stepping
+  const step = Math.floor(now / FRAME);
   if (step !== lastStep) { lastStep = step; drawLayers(step * FRAME); }
   if (now - lastGrain > 1000 / GRAIN_FPS) {
     lastGrain = now; frame++;
