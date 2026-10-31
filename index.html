@@ -1540,6 +1540,7 @@ function drawYear(scene, el, o = {}) {       // el = seconds since the number fo
 }
 const yearSide = scene => { const lay = scene.imgs && scene.imgs.length ? 1 : 0; return { sc: lerp(1, YEAR_SIDE_SCALE, lay), ox: YEAR_SIDE_X * W * lay }; };
 // the year's pictures, as prints on the left (clean layer: no film effect)
+const easeInOutSine = x => 0.5 - 0.5 * Math.cos(Math.PI * clamp01(x));
 const easeOutQuint = x => 1 - Math.pow(1 - clamp01(x), 5);
 function drawCards(scene, el, lay, out) {
   const n = scene.imgs.length, T = performance.now();
@@ -2037,9 +2038,11 @@ function trYearMedia(A, B, s, sPrev, T) {
     const m = easeInOutCubic(clamp01((s - 0.6) / 0.85));
     drawHeader(B, lerp(side.sc, HEADER_SCALE, m), lerp(H / 2, HEADER_Y * H, m), lerp(side.ox, 0, m));
   }
-  const f = easeOutQuint(clamp01((s - 1.0) / 0.9));
-  const capA = easeInOut(clamp01((s - 1.4) / 0.55));
-  drawMedia(B, clamp01(f * 1.6), (1 - f) * 0.07 * H, lerp(0.96, 1, f), capA, T);
+  if (s > 0.85) {                              // the frame rises in from below the slide, mirroring its exit
+    const f = easeInOutSine((s - 0.85) / MEDIA_SLIDE);
+    const capA = easeInOut(clamp01((s - 1.6) / 0.6));
+    drawMedia(B, 1, (1 - f) * mediaTravel(), 1, capA, T);
+  }
   return { mono: lerp(A.mono, B.mono, 0.5), goo: 0, thresh: 0.5, morph: 0 };
 }
 
@@ -2091,14 +2094,17 @@ function trFly(A, B, s, sPrev, T) {
   return Object.assign(out, { bgOff: camX * 0.18, bgZoom: 1 + (1 - z) * 0.75 });
 }
 // media → a different year: picture and caption sink away, the year grows back to full size, then the timeline flight
-const SINK = 1.2;                         // seconds for the picture to leave and the year to grow back
+const SINK = 1.5;                         // seconds for the picture to leave and the year to grow back
+// the frame's full slide: from its place to just below the slide (and back, for the entrance)
+const MEDIA_SLIDE = 1.15;                    // seconds
+const mediaTravel = () => H - mediaRect().y + 0.1 * H;
 function trMediaFly(A, B, s, sPrev, T) {
   if (s < SINK) {
-    // 1. the frame (with its caption) slides down and out of the slide in one smooth move
-    const R = mediaRect(), out = easeInOutCubic(clamp01(s / 0.75));
-    drawMedia(A, 1, out * (H - R.y + 0.08 * H), 1, 1 - easeInOut(clamp01(s / 0.6)), T);
-    // 2. the year waits at the top, then grows to the centre once the frame is nearly gone — they never cross
-    const e = easeInOutCubic(clamp01((s - 0.3) / (SINK - 0.3)));
+    // 1. the frame (with its caption) slides down and out at an even, readable speed
+    const out = easeInOutSine(s / MEDIA_SLIDE);
+    drawMedia(A, 1, out * mediaTravel(), 1, 1 - easeInOut(clamp01(s / 0.7)), T);
+    // 2. the year waits at the top, then grows to the centre behind the frame's top edge — they never cross
+    const e = easeInOutCubic(clamp01((s - 0.45) / (SINK - 0.45)));
     drawHeader(A, lerp(HEADER_SCALE, 1, e), lerp(HEADER_Y * H, H / 2, e));
     return { mono: lerp(A.mono, B.mono, e), goo: 0, thresh: 0.5, morph: 0 };
   }
