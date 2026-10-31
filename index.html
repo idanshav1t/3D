@@ -91,7 +91,7 @@
     <aside class="notes">שקף פתיחה.</aside>
   </section>
 
-  <section data-scene="year" data-year="2026" data-mono="off" data-travel="depth"
+  <section data-scene="year" data-year="2026" data-mono="off" data-travel="depth" data-shadow="off"
            data-posters="Avatar: Fire and Ash; Dune: Part Two; Avengers: Endgame; The Lion King; Interstellar; Gravity">
     <aside class="notes">2026. הקליק הבא: חוזרים אחורה בזמן.</aside>
   </section>
@@ -129,11 +129,12 @@
   <section data-scene="media" data-year="1982" data-mono="off" data-caption="Star Trek II: The Wrath of Khan (1982)"></section>
 
   <section data-scene="year" data-year="1986" data-mono="off" data-imgs="y1986-pixar"></section>
-  <section data-scene="media" data-year="1986" data-mono="off" data-caption="Pixar (1986)"></section>
 
   <section data-scene="paper" data-year="1986" data-src="y1986-luxo" data-caption="Luxo Jr. (1986)">
     <aside class="notes">הסרט הראשון של פיקסאר.</aside>
   </section>
+
+  <section data-scene="media" data-year="1986" data-mono="off" data-caption="Pixar (1986)"></section>
 
   <section data-scene="year" data-year="1988" data-mono="off" data-imgs="y1988-pixar-software"></section>
   <section data-scene="media" data-year="1988" data-mono="off" data-caption="RenderMan (1988)"></section>
@@ -1250,7 +1251,7 @@ const PAPER_WIDTH = 0.4;            // share of slide width
 
 // 2026 → 1968: the camera flies back through the years, set in depth
 const DEPTH_YEARS = [2026, 2020, 2016, 2012, 2006, 2000, 1995, 1989, 1982, 1976, 1972, 1968];
-const DEPTH = { retract: 0.55, hop: 0.58, land: 1.1 };   // seconds: shadow pulls in, time per year, final settle
+const DEPTH = { push: 0.7, hop: 0.5, land: 1.4 };       // seconds: slow push-in, time per year, brake into the last year
 const DEPTH_ROLL = 2.5;            // camera roll during the flight (degrees)
 const LETTERBOX  = 0.11;           // cinematic bars during the flight (share of slide height)
 // posters behind a year (data-posters="Title; Title; ..."): media named poster-<title-in-lowercase-with-dashes>
@@ -1363,7 +1364,7 @@ function buildScenes() {
           posters: (d.posters || '').split(';').map(x => x.trim()).filter(Boolean).map(t => {
             const name = 'poster-' + t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
             return { title: t, m: MEDIA_LIST[name] ? loadMedia(name) : null }; }),
-          depart: d.travel || '', arrive: d.arrive || '',
+          depart: d.travel || '', arrive: d.arrive || '', noShadow: d.shadow === 'off',
           imgs: (d.imgs || '').split(',').map(x => x.trim()).filter(Boolean).map(x => (old[n] && old[n].imgs && old[n].imgs.find(m => m.src === x)) || loadMedia(x)) }
       : { kind, letters: layoutTitle(d.top || '', d.bottom || ''), cube: d.cube !== 'off', mono: d.mono === 'on' ? 1 : 0 };
     sc.t0 = old[n] ? old[n].t0 : 0;      // when this scene's animation started
@@ -1479,7 +1480,8 @@ function drawShape(S, T, o = { dx: 0, dy: 0, spin: 0, vx: 0 }) {
     const ln = Math.hypot(...n); n = n.map(q => q / ln);
     if (n[2] <= 0.01) continue;
     const shade = Math.max(0, n[0]*LIGHT[0] + n[1]*LIGHT[1] + n[2]*LIGHT[2]);
-    const tone = FACE_TONES[Math.min(FACE_TONES.length - 1, Math.floor(shade * FACE_TONES.length))];
+    const ft = clamp01(shade) * (FACE_TONES.length - 1), fi = Math.min(FACE_TONES.length - 2, Math.floor(ft));
+    const tone = lerp(FACE_TONES[fi], FACE_TONES[fi + 1], ft - fi);      // flat per face, but changes smoothly as it turns
     sctx.beginPath();
     f.forEach((i, j) => { const [px, py] = proj(P[i]); j ? sctx.lineTo(px, py) : sctx.moveTo(px, py); });
     sctx.closePath();
@@ -1508,7 +1510,7 @@ function drawYear(scene, el, o = {}) {       // el = seconds since the number fo
   const ang = (90 - YEAR_SHADOW_ANGLE) * Math.PI / 180, dx = Math.cos(ang), dy = Math.sin(ang);
   const full = Math.hypot(W, H) * 1.05;      // long enough to leave the frame from anywhere
   const len = full * easeInOut(clamp01((o.shadowEl != null ? o.shadowEl : el) / YEAR_SHADOW_GROW));
-  if (len > 0.5) {
+  if (len > 0.5 && !scene.noShadow) {
     const cacheOk = scene.shadowCache && scene.shadowKey === ys + ':' + ox;
     if (len >= full - 0.5 && cacheOk) {
       tctx.save(); tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.drawImage(scene.shadowCache, 0, 0); tctx.restore();
@@ -1604,67 +1606,122 @@ function drawPosters(scene, el, out = 0) {
   });
 }
 
-/* 2026 → 1968: the camera dollies backwards along a curved rail. Each older year comes in from behind the camera,
-   settles in front of it, and then recedes with the others: a trail of years curving into the vanishing point. */
+/* 2026 → 1968, shot like a film: a slow push-in, then the camera yanks backwards through the years.
+   Every year is a solid block with real extrusion; the one settling in front of the lens is in focus,
+   years rushing past the lens are thrown out of focus and zoom-blurred; dust in the air gives parallax and speed. */
 function depthList(A, B) {
   const hi = Math.max(+A.year, +B.year), lo = Math.min(+A.year, +B.year);
   return [...new Set([hi, ...DEPTH_YEARS.filter(y => y < hi && y > lo), lo])].sort((a, b) => b - a);
 }
-const depthDur = (A, B) => DEPTH.retract + (depthList(A, B).length - 1) * DEPTH.hop + DEPTH.land;
-function railPoint(i) {                     // where year i sits on the rail (share of W / H, relative to the axis)
+const depthDur = (A, B) => DEPTH.push + (depthList(A, B).length - 1) * DEPTH.hop + DEPTH.land;
+function railPoint(i) {
   if (i <= 0) return [0, 0];
   const a = i * 1.15 + 0.6;
   return [Math.cos(a) * 0.78, Math.sin(a) * 0.5];
 }
-function railAt(t) {                        // smooth (Catmull-Rom) camera position along the rail
+function railAt(t) {
   const i = Math.floor(t), f = t - i, p = j => railPoint(j);
   const P0 = p(i - 1), P1 = p(i), P2 = p(i + 1), P3 = p(i + 2);
   return [0, 1].map(c => 0.5 * ((2 * P1[c]) + (-P0[c] + P2[c]) * f + (2 * P0[c] - 5 * P1[c] + 4 * P2[c] - P3[c]) * f * f + (-P0[c] + 3 * P1[c] - 3 * P2[c] + P3[c]) * f * f * f));
 }
-function trDepth(A, B, s, sPrev, T) {
-  const ys = depthList(A, B), n = ys.length, travel = (n - 1) * DEPTH.hop;
-  const t0 = DEPTH.retract, t1 = t0 + travel + DEPTH.land, land = t1;
-  const out = { mono: lerp(A.mono, B.mono, smooth(t0 + travel * 0.7, t1 - 0.15, s)), goo: 0, thresh: 0.5, morph: 0 };
-  // letterbox in at the start of the flight, out as 1968 lands
-  const bars = easeInOutCubic(clamp01((s - 0.15) / 0.7)) * (1 - easeInOutCubic(clamp01((s - (t1 - 0.6)) / 0.6)));
-  const letterbox = () => { if (bars > 0.002) { const h = LETTERBOX * H * bars; vctx.fillStyle = '#000'; vctx.fillRect(0, 0, W, h); vctx.fillRect(0, H - h, W, h); mediaOn = true; } };
-  if (s < t0) {                                              // 2026 lets go of its shadow
-    drawPosters(A, 99); drawYear(A, 99, { shadowEl: YEAR_SHADOW_GROW * (1 - easeInOut(s / t0)) });
-    letterbox(); return out;
-  }
-  if (s >= land) { drawYear(B, s - land); return out; }
-  // camera position along the rail, in years: eases in, cruises, eases into 1968
-  const u = clamp01((s - t0) / (travel + DEPTH.land * 0.75));
-  const t = (n - 1) * (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
-  const cam = railAt(t);
-  const roll = DEPTH_ROLL * Math.sin(Math.PI * u) * Math.PI / 180;
-  const trailFade = 1 - smooth(0.82, 1, u);                    // the trail sinks into the dark as 1968 settles
-  tctx.save(); tctx.translate(W / 2, H / 2); tctx.rotate(roll); tctx.translate(-W / 2, -H / 2);
-  for (let j = 0; j < n; j++) {                               // far → near
-    const d = t - j + 1;                                      // 1 = on the slide; < 1 still behind / passing the camera
-    if (d < 0.45) continue;
-    const sc = 1 / d, rp = railPoint(j), side = j % 2 ? 1 : -1;
-    const sweep = Math.pow(1 - smooth(0.45, 1.0, d), 2);      // passes the camera from beside it, swoops in from off-frame
-    const sx = W / 2 + (rp[0] - cam[0]) * W * sc + side * sweep * 0.75 * W, sy = H / 2 + (rp[1] - cam[1]) * H * sc + sweep * 0.12 * H;
-    const arrive = smooth(0.45, 0.55, d);
-    const haze = 1 - smooth(1.5, 3.8, d);                     // only the nearest few years stay; the rest dissolve into the haze
-    const a = arrive * haze * (j === n - 1 ? 1 : trailFade);
-    if (a < 0.01) continue;
-    if (j === 0 && A.posters && A.posters.length) {
-      tctx.save(); tctx.translate(sx, sy); tctx.scale(sc, sc); tctx.translate(-W / 2, -H / 2); drawPosters(A, 99, 1 - a); tctx.restore();
-    }
-    drawDepthYear(tlLetters(ys[j]), sx, sy, sc, a);
-  }
-  tctx.restore();
-  letterbox();
-  return Object.assign(out, { bgZoom: 1 + 0.55 * Math.sin(Math.PI * Math.min(1, u * 1.15)), bgOff: -u * 0.35 });
+// camera position in "years travelled" at time s: push-in, yank, cruise, hard brake with a small settle
+function camT(s, n) {
+  const push = DEPTH.push, cruise = (n - 1) * DEPTH.hop + DEPTH.land * 0.8;
+  if (s < push) return -0.07 * easeInOut(s / push);
+  const u = clamp01((s - push) / cruise);
+  const accel = u < 0.18 ? Math.pow(u / 0.18, 2.6) * 0.18 : u;                 // the yank: slow → fast
+  const g = u < 0.18 ? accel : 0.18 + (1 - Math.pow(1 - (u - 0.18) / 0.82, 3.4)) * 0.82;   // long cruise, hard brake
+  const settle = 0.035 * Math.sin(clamp01((u - 0.9) / 0.1) * Math.PI);           // overshoots a hair, comes back
+  return lerp(-0.07, n - 1, g) + settle;
 }
-function drawDepthYear(letters, sx, sy, sc, alpha) {
-  tctx.save(); tctx.globalAlpha = alpha;
-  const off = 0.016 * W * sc;
-  for (const L of letters) drawLetter(tctx, L, sx + (L.cx - W / 2) * sc + off, sy + (L.cy - H / 2) * sc + off, sc, 0, 0, 0, 'flat', '#0b0806');
-  for (const L of letters) drawLetter(tctx, L, sx + (L.cx - W / 2) * sc, sy + (L.cy - H / 2) * sc, sc, 0, 0, 0, 'face');
+let spriteCache = {};
+function yearSprite(y) {                    // the year as a solid block: face + extrusion, rendered once
+  const key = y + ':' + W + ':' + DPR;
+  if (spriteCache[key]) return spriteCache[key];
+  const letters = tlLetters(y), b = boxOf(letters), E = 0.05 * W, pad = 0.03 * W;
+  const ox = b.x0 - pad, oy = b.y0 - pad, w = b.x1 - b.x0 + pad * 2 + E, h = b.y1 - b.y0 + pad * 2 + E;
+  const mkc = () => { const c = document.createElement('canvas'); c.width = Math.ceil(w * DPR); c.height = Math.ceil(h * DPR);
+                      const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, -ox * DPR, -oy * DPR); return [c, g]; };
+  const [fc, fg] = mkc(), [ec, eg] = mkc();
+  for (const L of letters) drawLetter(fg, L, L.cx, L.cy, 1, 0, 0, 0, 'face');
+  const steps = Math.ceil(E * DPR / 1.2), dxy = E / steps / Math.SQRT2;
+  for (let i = steps; i >= 1; i--) for (const L of letters) drawLetter(eg, L, L.cx + dxy * i, L.cy + dxy * i, 1, 0, 0, 0, 'flat', '#000');
+  const gr = eg.createLinearGradient(b.x0, b.y0, b.x0 + E, b.y0 + E);
+  gr.addColorStop(0, SHADOW_NEAR); gr.addColorStop(1, SHADOW_FAR);
+  eg.globalCompositeOperation = 'source-in'; eg.setTransform(1, 0, 0, 1, 0, 0); eg.fillStyle = gr; eg.fillRect(0, 0, ec.width, ec.height);
+  return spriteCache[key] = { face: fc, ext: ec, ox, oy, w, h };
+}
+function drawSprite(sp, img, sx, sy, sc, alpha, blur, zoomBlur) {
+  if (alpha < 0.01) return;
+  const x = sx + (sp.ox - W / 2) * sc, y = sy + (sp.oy - H / 2) * sc, w = sp.w * sc, h = sp.h * sc;
+  tctx.save();
+  if (blur > 0.4 && 'filter' in tctx) tctx.filter = `blur(${blur * DPR}px)`;
+  const taps = zoomBlur > 0.004 ? 5 : 1;
+  for (let i = 0; i < taps; i++) {                                                   // zoom blur: a few copies along the motion
+    const f = 1 + zoomBlur * (i / Math.max(1, taps - 1) - 0.5);
+    tctx.globalAlpha = alpha / (taps > 1 ? 2.2 : 1);
+    tctx.drawImage(img, sx + (x - sx) * f, sy + (y - sy) * f, w * f, h * f);
+  }
   tctx.restore();
+}
+const DUST = Array.from({ length: 170 }, (_, i) => [(jit(i * 1.3) - 0.5) * 3.4, (jit(i * 2.7) - 0.5) * 2.4, jit(i * 4.1) * 14 - 2, 0.6 + jit(i * 5.3) * 1.4]);
+function trDepth(A, B, s, sPrev, T) {
+  const ys = depthList(A, B), n = ys.length, land = depthDur(A, B);
+  const out = { mono: lerp(A.mono, B.mono, smooth(land - DEPTH.land - 0.5, land - 0.1, s)), goo: 0, thresh: 0.5, morph: 0 };
+  if (s >= land) { drawYear(B, s - land); return out; }
+  const t = camT(s, n), tp = camT(Math.max(0, s - 1 / 30), n), speed = (t - tp) * 30;   // years per second
+  const flight = smooth(0, 0.6, s) * (1 - smooth(land - 0.7, land - 0.05, s));
+  const cam = railAt(Math.max(0, t));
+  const roll = (DEPTH_ROLL * Math.sin(Math.PI * clamp01(t / (n - 1))) + 0.25 * Math.sin(T / 1000 * 7.3) * flight * Math.min(1, speed / 2)) * Math.PI / 180;
+  // the void of time: the world darkens around the years mid-flight
+  if (flight > 0.01) {
+    const g = tctx.createRadialGradient(W / 2, H / 2, H * 0.1, W / 2, H / 2, W * 0.75);
+    g.addColorStop(0, `rgba(10,6,2,${0.25 * flight})`); g.addColorStop(1, `rgba(4,2,0,${0.8 * flight})`);
+    tctx.fillStyle = g; tctx.fillRect(0, 0, W, H);
+  }
+  tctx.save(); tctx.translate(W / 2, H / 2); tctx.rotate(roll); tctx.translate(-W / 2, -H / 2);
+  // dust: depth-scaled specks that streak with speed
+  if (flight > 0.01) {
+    tctx.strokeStyle = 'rgba(255,236,200,1)'; tctx.lineCap = 'round';
+    const camP = railAt(Math.max(0, tp));
+    for (const [px, py, pz, sz] of DUST) {
+      const d = t - pz + 1, dp = tp - pz + 1;
+      if (d < 0.12 || d > 6 || dp < 0.05) continue;
+      const x = W / 2 + (px - cam[0]) * W / d, y = H / 2 + (py - cam[1]) * H / d;
+      const xp = W / 2 + (px - camP[0]) * W / dp, yp = H / 2 + (py - camP[1]) * H / dp;
+      const a = flight * smooth(0.12, 0.5, d) * (1 - smooth(2.5, 6, d)) * 0.7;
+      if (a < 0.02) continue;
+      tctx.globalAlpha = a; tctx.lineWidth = Math.min(6, sz * 1.6 * k / d);
+      tctx.beginPath(); tctx.moveTo(xp, yp); tctx.lineTo(x + 0.01, y); tctx.stroke();
+    }
+    tctx.globalAlpha = 1;
+  }
+  // the years, far → near
+  const trailFade = 1 - smooth(n - 1.35, n - 1, t);
+  for (let j = 0; j < n; j++) {
+    const d = t - j + 1;
+    if (d < 0.42) continue;
+    const sc = 1 / d, rp = railPoint(j), side = j % 2 ? 1 : -1, last = j === n - 1;
+    const sweep = j === 0 ? 0 : Math.pow(1 - smooth(0.42, 1.0, d), 2);
+    const sx = W / 2 + (rp[0] - cam[0]) * W * sc + side * sweep * 0.8 * W, sy = H / 2 + (rp[1] - cam[1]) * H * sc + sweep * 0.14 * H;
+    const haze = 1 - smooth(1.5, 3.8, d);
+    const a = smooth(0.42, 0.52, d) * haze * (last ? 1 : trailFade);
+    if (a < 0.01) continue;
+    const focus = d < 1 ? (1 - d) * 26 : (d - 1) * 2.2;                             // focus on the year settling in front
+    const zb = Math.min(0.09, Math.abs(speed) * 0.018 / d) * flight;                 // zoom blur grows with speed and closeness
+    const sp = yearSprite(ys[j]);
+    if (j === 0 && A.posters && A.posters.length) {
+      tctx.save(); tctx.translate(sx, sy); tctx.scale(sc, sc); tctx.translate(-W / 2, -H / 2); drawPosters(A, 99, 1 - a * (1 - smooth(1, 1.8, d) * 0.6)); tctx.restore();
+    }
+    const extA = j === 0 ? smooth(1, 1.6, d) : last ? smooth(1, 1.35, d) : 1;          // the slides themselves have no block
+    drawSprite(sp, sp.ext, sx, sy, sc, a * extA, focus * k, zb);
+    drawSprite(sp, sp.face, sx, sy, sc, a, focus * k, zb);
+  }
+  tctx.restore();
+  // widescreen bars
+  const bars = easeInOutCubic(clamp01(s / 0.7)) * (1 - easeInOutCubic(clamp01((s - (land - 0.7)) / 0.6)));
+  if (bars > 0.002) { const h = LETTERBOX * H * bars; vctx.fillStyle = '#000'; vctx.fillRect(0, 0, W, h); vctx.fillRect(0, H - h, W, h); mediaOn = true; }
+  return Object.assign(out, { bgZoom: 1 + 0.7 * Math.sin(Math.PI * clamp01(t / (n - 1))), bgOff: -0.3 * clamp01(t / (n - 1)) });
 }
 const mediaCache = {};
 const loadMediaCached = n => mediaCache[n] || (mediaCache[n] = loadMedia(n));
@@ -1743,7 +1800,20 @@ function drawPaper(scene, u, T) {
   mediaOn = true;
 }
 function dim(a) { if (a > 0.003) { vctx.save(); vctx.fillStyle = `rgba(0,0,0,${0.55 * a})`; vctx.fillRect(0, 0, W, H); vctx.restore(); mediaOn = true; } }
-function paperIdle(scene, T) { mediaIdle(scene.base, T); dim(1); drawPaper(scene, 9, T); }
+function drawBase(b, T) { if (!b) return; if (b.kind === 'year') { drawPosters(b, 99); drawYear(b, 99); } else mediaIdle(b, T); }
+function paperIdle(scene, T) { drawBase(scene.base, T); dim(1); drawPaper(scene, 9, T); }
+function trBasePaper(A, B, s, sPrev, T) {
+  drawBase(A, T); dim(easeInOut(clamp01(s / 0.6))); drawPaper(B, s, T);
+  return { mono: A.mono, goo: 0, thresh: 0.5, morph: 0 };
+}
+function trPaperMedia(A, B, s, sPrev, T) {                   // paper folds away over its year, then the year → video
+  if (s < PAPER_AWAY) {
+    drawBase(A.base, T); dim(1 - easeInOut(clamp01((s - 0.4) / 0.55)));
+    drawPaper(A, 1.45 * (1 - s / PAPER_AWAY), T);
+    return { mono: A.base.mono, goo: 0, thresh: 0.5, morph: 0 };
+  }
+  return trYearMedia(A.base, B, s - PAPER_AWAY, sPrev - PAPER_AWAY, T);
+}
 function trMediaPaper(A, B, s, sPrev, T) {
   mediaIdle(A, T); dim(easeInOut(clamp01(s / 0.6))); drawPaper(B, s, T);
   return { mono: A.mono, goo: 0, thresh: 0.5, morph: 0 };
@@ -2172,6 +2242,8 @@ const TRANSITIONS = {
                                   : { fn: trMediaFly, dur: () => SINK + FLY.zoomIn[1] - FLY.retract + YEAR_SHADOW_GROW,
                                       formedAt: SINK + FLY.zoomIn[1] - FLY.retract } },
   'media>paper':              { fn: trMediaPaper,  dur: () => 1.5, formedAt: 0 },
+  'year>paper':               { fn: trBasePaper,   dur: () => 1.5, formedAt: 0 },
+  'paper>media':              { fn: trPaperMedia,  dur: () => PAPER_AWAY + 2.3, formedAt: 0 },
   'paper>year':               { fn: trPaperYear,   dur: () => PAPER_AWAY + SINK + FLY.zoomIn[1] - FLY.retract + YEAR_SHADOW_GROW,
                                 formedAt: PAPER_AWAY + SINK + FLY.zoomIn[1] - FLY.retract },
   'year>year':                { pick: (A, B) => A.year === B.year
@@ -2418,7 +2490,7 @@ function resize() {
   gl.viewport(0, 0, film.width, film.height);
   gl.uniform2f(U('uRes'), film.width, film.height);
   gl.uniform1f(U('uDpr'), DPR); gl.uniform1f(U('uK'), k);
-  tlCache = {}; buildScenes(); lastStep = -1;
+  tlCache = {}; spriteCache = {}; buildScenes(); lastStep = -1;
 }
 
 /* ---------- loop ---------- */
@@ -2443,7 +2515,7 @@ function setQuality(d) {
   for (const c of [film, tcv, scv, bcv, mcv, icv, vcv, pcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
   gl.viewport(0, 0, film.width, film.height); gl.uniform2f(U('uRes'), film.width, film.height); gl.uniform1f(U('uDpr'), DPR);
   const clear = sc => { if (!sc) return; sc.shadowCache = null; sc.sheets = null; (sc.letters || []).forEach(L => { L.img = null; L.face = null; }); };
-  scenes.forEach(clear); Object.values(tlCache).forEach(ls => ls.forEach(L => { L.img = null; }));
+  scenes.forEach(clear); Object.values(tlCache).forEach(ls => ls.forEach(L => { L.img = null; })); spriteCache = {};
   shapesWas = true; mediaWas = true; lastStep = -1;
 }
 function watchPerf(now) {
