@@ -1168,6 +1168,8 @@ Please report this to https://github.com/markedjs/marked.`,e){let e=`<p>An error
 const MEDIA_BASE = "media";
 const MEDIA_LIST = {"1968": "image/jpeg", "1971": "video/mp4", "1972": "video/mp4", "1976": "video/mp4", "1982-startrek": "video/mp4", "1982-tron": "video/mp4", "1986-pixar": "video/mp4", "catmull": "image/jpeg", "y1972-hand": "image/jpeg", "y1976-futureworld": "image/jpeg", "y1982-startrek": "image/jpeg", "y1982-tron": "image/jpeg", "y1986-luxo": "image/jpeg", "y1986-pixar": "image/jpeg", "y1988-pixar-software": "image/jpeg", "y1991-t2": "image/jpeg", "y1993-jurassic": "image/jpeg", "y1995-pixar-films": "image/jpeg"};            // name → mime type (written by the build)
 const MEDIA_EXT  = {"1968": ".jpg", "1971": ".mp4", "1972": ".mp4", "1976": ".mp4", "1982-startrek": ".mp4", "1982-tron": ".mp4", "1986-pixar": ".mp4", "catmull": ".jpg", "y1972-hand": ".jpg", "y1976-futureworld": ".jpg", "y1982-startrek": ".jpg", "y1982-tron": ".jpg", "y1986-luxo": ".jpg", "y1986-pixar": ".jpg", "y1988-pixar-software": ".jpg", "y1991-t2": ".jpg", "y1993-jurassic": ".jpg", "y1995-pixar-films": ".jpg"};             // name → file extension
+const MEDIA_ALT  = {"1972": ".webm", "1976": ".webm", "1982-startrek": ".webm", "1982-tron": ".webm", "1986-pixar": ".webm"};             // name → extension of a smaller WebM copy (videos)
+const WEBM_OK = (() => { try { return document.createElement('video').canPlayType('video/webm; codecs="vp9, opus"') === 'probably'; } catch (e) { return false; } })();
 const MEDIA_URLS = {}, MEDIA_BLOBS = {}, MEDIA_FALLBACK = {};
 function mediaArrived(name, type, b64) {      // called by each media/<name>.js
   const bin = atob(b64), buf = new Uint8Array(bin.length);
@@ -1178,7 +1180,11 @@ function loadLocalMedia(n) {                  // media/<name>.js next to this fi
   if (MEDIA_FALLBACK[n]) return; MEDIA_FALLBACK[n] = 1;
   const sc = document.createElement('script'); sc.src = 'media/' + n + '.js'; sc.async = true; document.head.appendChild(sc);
 }
-if (MEDIA_BASE) Object.keys(MEDIA_LIST).forEach(n => { MEDIA_URLS[n] = MEDIA_BASE.replace(/\/$/, '') + '/' + n + MEDIA_EXT[n]; });
+const MEDIA_MP4 = {};                         // the always-playable version, if the WebM fails
+if (MEDIA_BASE) Object.keys(MEDIA_LIST).forEach(n => {
+  const b = MEDIA_BASE.replace(/\/$/, '') + '/' + n;
+  MEDIA_URLS[n] = b + (WEBM_OK && MEDIA_ALT[n] ? MEDIA_ALT[n] : MEDIA_EXT[n]); MEDIA_MP4[n] = b + MEDIA_EXT[n];
+});
 else Object.keys(MEDIA_LIST).forEach(loadLocalMedia);
 </script>
 <script>
@@ -1192,7 +1198,13 @@ const SHADOW_CYCLE = 4.2;           // seconds for one shadow cycle: drop down, 
 const SHADOW_SWEEP = 0.9;           // seconds for the shadow wave to cross the text, right → left
 const SHADOW_MIN   = 0.18;          // shadow length at rest (share of SHADOW_DEPTH)
 const FACE_TOP     = "#fffdf6";     // letter face, top
-const FACE_BOTTOM  = "#efe2c8";     // letter face, bottom (subtle warm fade)
+const FACE_BOTTOM  = "#d3bf9b";     // letter face, bottom: a little darker, warm
+const FACE_FADE_AT = 0.42;          // the face stays FACE_TOP down to here, then darkens toward the bottom (0 = top, 1 = bottom)
+const SWEEP_EVERY  = 5.5;           // light sweep across the main texts: seconds between sweeps
+const SWEEP_TIME   = 1.5;           // seconds for the light to cross the slide
+const SWEEP_WIDTH  = 0.11;          // width of the light band (share of slide width)
+const SWEEP_ANGLE  = 22;            // tilt of the band (degrees from vertical)
+const SWEEP_LIGHT  = 1.0;           // brightness at the centre of the band (0..1)
 const SOFT_SHADOW  = 0.28;          // soft shadow the letters cast on the background (0 = off)
 const WAVE_HEIGHT  = 0.009;         // title idle wave: how high each letter lifts (share of slide width)
 const WAVE_CYCLE   = 3.8;           // seconds between waves
@@ -1424,6 +1436,10 @@ const toneCol = f => { const v = Math.round(Math.max(0, Math.min(1, (f - 0.5) / 
 // Fix: draw the letter (shadow + face) into its own small buffer at a whole-pixel spot, then place that
 // buffer at the exact (fractional) position — images move smoothly by fractions of a pixel.
 function drawLetter(c, L, px, py, sc, vx, vy, slen, mode, color) {
+  if (c === tctx) { letterAt = [px, py]; try { return drawLetterAt(c, L, px, py, sc, vx, vy, slen, mode, color); } finally { letterAt = null; } }
+  return drawLetterAt(c, L, px, py, sc, vx, vy, slen, mode, color);
+}
+function drawLetterAt(c, L, px, py, sc, vx, vy, slen, mode, color) {
   if (mode !== 'flat' && Math.hypot(vx, vy) <= 0.4 && c !== L.scrCtx) {
     const m = c.getTransform();
     if (m.b === 0 && m.c === 0 && m.a === m.d && m.a > 0 && slen * sc < 0.06 * W) {
@@ -1437,7 +1453,7 @@ function drawLetter(c, L, px, py, sc, vx, vy, slen, mode, color) {
       const x = L.scrCtx;
       x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cw, ch);
       x.setTransform(s, 0, 0, s, padX, padY);
-      drawLetter(x, L, 0, 0, sc, 0, 0, slen, mode, color);
+      drawLetterAt(x, L, 0, 0, sc, 0, 0, slen, mode, color);
       const X = m.a * px + m.e, Y = m.d * py + m.f;
       c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
       c.drawImage(L.scr, 0, 0, cw, ch, X - padX, Y - padY, cw, ch);
@@ -1456,18 +1472,35 @@ function drawLetter(c, L, px, py, sc, vx, vy, slen, mode, color) {
   setFont(c, L);
   const ox = L.align === 'right' ? L.w / 2 : -L.w / 2, oy = L.cap / 2;
   if (mode === 'flat') { c.fillStyle = color; c.fillText(L.ch, ox, oy); c.restore(); return; }
-  if (mode === 'face') { const g = c.createLinearGradient(0, oy - L.cap, 0, oy); g.addColorStop(0, FACE_TOP); g.addColorStop(1, FACE_BOTTOM);
-                         c.fillStyle = g; c.fillText(L.ch, ox, oy); c.restore(); return; }
+  if (mode === 'face') { paintFace(c, L, ox, oy, sc); c.restore(); return; }
   const len = slen / sc, ang = (90 - SHADOW_ANGLE) * Math.PI / 180;
   const steps = Math.min(48, Math.ceil(len * sc * DPR));
   for (let s = steps; s >= 1; s--) {
     c.fillStyle = lerpHex(SHADOW_NEAR, SHADOW_FAR, (s / steps) * (len * sc / (SHADOW_DEPTH * W)));
     c.fillText(L.ch, ox + Math.cos(ang) * len * s / steps, oy + Math.sin(ang) * len * s / steps);
   }
-  const g = c.createLinearGradient(0, oy - L.cap, 0, oy);
-  g.addColorStop(0, FACE_TOP); g.addColorStop(1, FACE_BOTTOM);
-  c.fillStyle = g; c.fillText(L.ch, ox, oy);
+  paintFace(c, L, ox, oy, sc);
   c.restore();
+}
+// the letter's face: white, a little darker toward the bottom; then the light sweep when it passes over
+let letterAt = null;                          // where on the slide the letter being drawn sits (only for the main text layer)
+let sweepT = 0;                               // the clock the sweep runs on (set each frame)
+function sweepCentre() {                      // x of the light band's centre on the slide, or null between sweeps
+  const p = (sweepT / 1000) % SWEEP_EVERY; if (p > SWEEP_TIME) return null;
+  return lerp(-0.25 * W, 1.25 * W, easeInOutSine(p / SWEEP_TIME));
+}
+function paintFace(c, L, ox, oy, sc) {
+  const g = c.createLinearGradient(0, oy - L.cap, 0, oy);
+  g.addColorStop(0, FACE_TOP); g.addColorStop(FACE_FADE_AT, FACE_TOP); g.addColorStop(1, FACE_BOTTOM);
+  c.fillStyle = g; c.fillText(L.ch, ox, oy);
+  const bx = letterAt && sweepCentre(); if (bx == null || bx === false) return;
+  // band across the slide, tilted; expressed in this letter's own coordinates so it lines up across all letters
+  const a = SWEEP_ANGLE * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a), hw = SWEEP_WIDTH * W / 2;
+  const cxL = (bx - letterAt[0]) / sc, cyL = (H / 2 - letterAt[1]) / sc, h = hw / sc;
+  if (Math.abs(cxL) > (L.w + L.cap) * 1.5 + h * 2) return;        // band far from this letter
+  const lg = c.createLinearGradient(cxL - ux * h, cyL - uy * h, cxL + ux * h, cyL + uy * h);
+  lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, `rgba(255,255,252,${SWEEP_LIGHT})`); lg.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = lg; c.fillText(L.ch, ox, oy);
 }
 
 // soft shadow cast on the background by a set of drawn letters [{L,px,py,sc,slen}]
@@ -2076,6 +2109,8 @@ function mediaEl(m) {
     m.el.addEventListener('error', () => { m.failed = true; loadLocalMedia(m.src); });
   }
   if (m.isVideo) Object.assign(m.el, { playsInline: true, preload: 'auto', loop: false });
+  if (m.isVideo && /\.webm$/i.test(url) && MEDIA_MP4[m.src])            // WebM refused → quietly switch to the MP4
+    m.el.addEventListener('error', () => { if (m.el && !/\.mp4$/i.test(m.el.src)) m.el.src = MEDIA_MP4[m.src]; });
   m.el.src = url;
   return m.el;
 }
@@ -2444,7 +2479,7 @@ function sceneBg(sc) {
 /* ---------- one frame (stepped at ANIM_FPS) ---------- */
 let monoNow = 0;
 function render(T, now) {
-  shapesOn = false;
+  sweepT = T; shapesOn = false;
   vctx.setTransform(1, 0, 0, 1, 0, 0); vctx.clearRect(0, 0, vcv.width, vcv.height); vctx.setTransform(DPR, 0, 0, DPR, 0, 0); mediaOn = false;
   sctx.setTransform(DPR, 0, 0, DPR, 0, 0); sctx.clearRect(0, 0, W, H);
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); tctx.clearRect(0, 0, W, H);
