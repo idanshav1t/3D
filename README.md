@@ -1,4 +1,7 @@
-# ההיסטוריה של תלת מימד — media
+# ההיסטוריה של תלת מימד
 
-Images and videos for the presentation, served through GitHub Pages.
-Each file is loaded by name from `media/` (e.g. `media/1971.mp4`).
+Live presentation: https://idanshav1t.github.io/3D/
+
+- `index.html` — the presentation (overview + Present). Built from the deck template; don't edit by hand.
+- `media/` — images and videos, loaded by name.
+- `thumbs/` — slide thumbnails for the overview.
