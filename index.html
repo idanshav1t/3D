@@ -107,6 +107,34 @@
     <aside class="notes">הקליק הבא מפעיל את הסרטון. קליק נוסף ממשיך הלאה.</aside>
   </section>
 
+  <section data-scene="paper" data-year="1971" data-src="catmull" data-caption="Ed Catmull">
+    <aside class="notes">אד קטמול.</aside>
+  </section>
+
+  <section data-scene="year" data-year="1972" data-mono="off" data-imgs="y1972-hand"></section>
+  <section data-scene="media" data-year="1972" data-mono="off" data-caption="A Computer Animated Hand (1972)"></section>
+
+  <section data-scene="year" data-year="1976" data-mono="off" data-imgs="y1976-futureworld"></section>
+  <section data-scene="media" data-year="1976" data-mono="off" data-caption="Futureworld (1976)"></section>
+
+  <section data-scene="year" data-year="1982" data-mono="off" data-imgs="y1982-tron,y1982-startrek"></section>
+  <section data-scene="media" data-year="1982" data-mono="off" data-caption="Tron (1982)"></section>
+
+  <section data-scene="year" data-year="1986" data-mono="off" data-imgs="y1986-pixar,y1986-luxo"></section>
+  <section data-scene="media" data-year="1986" data-mono="off" data-caption="Pixar · Luxo Jr. (1986)"></section>
+
+  <section data-scene="year" data-year="1988" data-mono="off" data-imgs="y1988-pixar-software"></section>
+  <section data-scene="media" data-year="1988" data-mono="off" data-caption="RenderMan (1988)"></section>
+
+  <section data-scene="year" data-year="1991" data-mono="off" data-imgs="y1991-t2"></section>
+  <section data-scene="media" data-year="1991" data-mono="off" data-caption="Terminator 2: Judgment Day (1991)"></section>
+
+  <section data-scene="year" data-year="1993" data-mono="off" data-imgs="y1993-jurassic"></section>
+  <section data-scene="media" data-year="1993" data-mono="off" data-caption="Jurassic Park (1993)"></section>
+
+  <section data-scene="year" data-year="1995" data-mono="off" data-imgs="y1995-pixar-films"></section>
+  <section data-scene="media" data-year="1995" data-mono="off" data-caption="Toy Story (1995)"></section>
+
 
 </div></div>
 
@@ -1124,8 +1152,8 @@ Please report this to https://github.com/markedjs/marked.`,e){let e=`<p>An error
 /* MEDIA_BASE set: media is streamed from there (e.g. a GitHub Pages site) and this file stays small.
    MEDIA_BASE empty: media comes from media/<name>.js next to this file (offline folder version). */
 const MEDIA_BASE = "media";
-const MEDIA_LIST = {"1968": "image/jpeg", "1971": "video/mp4"};            // name → mime type (written by the build)
-const MEDIA_EXT  = {"1968": ".jpg", "1971": ".mp4"};             // name → file extension
+const MEDIA_LIST = {"1968": "image/jpeg", "1971": "video/mp4", "catmull": "image/jpeg", "y1972-hand": "image/jpeg", "y1976-futureworld": "image/jpeg", "y1982-startrek": "image/jpeg", "y1982-tron": "image/jpeg", "y1986-luxo": "image/jpeg", "y1986-pixar": "image/jpeg", "y1988-pixar-software": "image/jpeg", "y1991-t2": "image/jpeg", "y1993-jurassic": "image/jpeg", "y1995-pixar-films": "image/jpeg"};            // name → mime type (written by the build)
+const MEDIA_EXT  = {"1968": ".jpg", "1971": ".mp4", "catmull": ".jpg", "y1972-hand": ".jpg", "y1976-futureworld": ".jpg", "y1982-startrek": ".jpg", "y1982-tron": ".jpg", "y1986-luxo": ".jpg", "y1986-pixar": ".jpg", "y1988-pixar-software": ".jpg", "y1991-t2": ".jpg", "y1993-jurassic": ".jpg", "y1995-pixar-films": ".jpg"};             // name → file extension
 const MEDIA_URLS = {}, MEDIA_BLOBS = {}, MEDIA_FALLBACK = {};
 function mediaArrived(name, type, b64) {      // called by each media/<name>.js
   const bin = atob(b64), buf = new Uint8Array(bin.length);
@@ -1194,10 +1222,19 @@ const SHADE_FROM    = 0.55;         // bottom gradient starts here (share of sli
 const CAPTION_SIZE  = 0.036;        // caption size (share of slide width)
 
 // timeline (year → another year flies the camera along it)
-const TIMELINE = [1963, 1968, 1971, 1974, 1977, 1982, 1986, 1989, 1993, 1995, 1999, 2004, 2009, 2014, 2019, 2024];  // placeholders
-const YEAR_SPACING = 0.3;           // distance per calendar year (share of slide width, at full zoom)
+const TIMELINE = [1968, 1971, 1972, 1976, 1982, 1986, 1988, 1991, 1993, 1995];
+const YEAR_SPACING = 0.75;          // distance between neighbouring marked years (share of slide width, at full zoom)
 const TIMELINE_ZOOM = 0.21;         // how far the camera pulls back (lower = more years visible)
 const FLY = { retract: 0.5, outEnd: 1.6, pan: [1.15, 2.25], zoomIn: [1.75, 2.9] };   // seconds
+
+// year slides with pictures: the year moves to the right, the pictures sit on the left as prints
+const YEAR_SIDE_X     = 0.2;        // how far the year moves right (share of slide width)
+const YEAR_SIDE_SCALE = 0.7;        // and how much it shrinks
+const CARD_BOX        = [0.33, 0.66];  // max picture size (share of width, share of height)
+const CARD_X          = 0.265;      // picture centre (share of width)
+// paper overlay (e.g. a person): unfolds in stop-motion, wiggles
+const PAPER_FPS   = 8;
+const PAPER_WIDTH = 0.4;            // share of slide width
 
 // title → year transition: liquid morph (blur + dissolve + levels) in place; colour drains to B&W
 const MORPH_DURATION = 2.85;         // seconds
@@ -1289,6 +1326,11 @@ function buildScenes() {
   scenes = secs.map((sec, n) => {
     const d = sec.dataset, kind = d.scene || 'title';
     if (kind.startsWith('intro') || kind === 'world') { const sc = { kind, letters: [], cube: kind === 'world', mono: 0 }; sc.t0 = old[n] ? old[n].t0 : 0; return sc; }
+    if (kind === 'paper') {
+      const sc = { kind, year: d.year || '', letters: layoutYear(d.year || ''), cube: false, mono: 0, caption: d.caption || '', src: d.src || '' };
+      sc.t0 = old[n] ? old[n].t0 : 0; sc.media = old[n] && old[n].src === sc.src ? old[n].media : loadMedia(sc.src);
+      return sc;
+    }
     if (kind === 'media') {
       const sc = { kind, year: d.year || '', letters: layoutYear(d.year || ''), cube: false, mono: d.mono === 'off' ? 0 : 1,
                    src: d.src || '', caption: d.caption || '', sound: d.sound === 'on' };
@@ -1296,11 +1338,13 @@ function buildScenes() {
       return sc;
     }
     const sc = kind === 'year'
-      ? { kind, year: d.year || '', letters: layoutYear(d.year || ''), cube: d.cube === 'on', mono: d.mono === 'off' ? 0 : 1 }
+      ? { kind, year: d.year || '', letters: layoutYear(d.year || ''), cube: d.cube === 'on', mono: d.mono === 'off' ? 0 : 1,
+          imgs: (d.imgs || '').split(',').map(x => x.trim()).filter(Boolean).map(x => (old[n] && old[n].imgs && old[n].imgs.find(m => m.src === x)) || loadMedia(x)) }
       : { kind, letters: layoutTitle(d.top || '', d.bottom || ''), cube: d.cube !== 'off', mono: d.mono === 'on' ? 1 : 0 };
     sc.t0 = old[n] ? old[n].t0 : 0;      // when this scene's animation started
     return sc;
   });
+  scenes.forEach((sc, n) => { if (sc.kind === 'paper') sc.base = scenes[n - 1]; });
   scenes.forEach((sc, n) => { const nb = scenes[n + 1], pv = scenes[n - 1];
     if ((nb && sc.kind === 'title' && nb.kind === 'year') || (pv && pv.kind === 'title' && sc.kind === 'year')) buildSdf(sc); });
 }
@@ -1429,35 +1473,158 @@ function glyphImage(L) {                     // white silhouette of one letter, 
   L.img = { c, iw, ih };
   return L.img;
 }
+function yearLayout(scene, el) {              // 0 = centred, 1 = moved aside for its pictures
+  return scene.imgs && scene.imgs.length ? easeInOutCubic(clamp01(el / 0.75)) : 0;
+}
 function drawYear(scene, el) {               // el = seconds since the number formed
+  const lay = yearLayout(scene, el), ys = lerp(1, YEAR_SIDE_SCALE, lay), ox = YEAR_SIDE_X * W * lay;
+  const PX = L => W / 2 + (L.cx - W / 2) * ys + ox, PY = L => H / 2 + (L.cy - H / 2) * ys;
   const ang = (90 - YEAR_SHADOW_ANGLE) * Math.PI / 180, dx = Math.cos(ang), dy = Math.sin(ang);
   const full = Math.hypot(W, H) * 1.05;      // long enough to leave the frame from anywhere
   const len = full * easeInOut(clamp01(el / YEAR_SHADOW_GROW));
   if (len > 0.5) {
-    if (len >= full - 0.5 && scene.shadowCache) {
+    const cacheOk = scene.shadowCache && scene.shadowKey === ys + ':' + ox;
+    if (len >= full - 0.5 && cacheOk) {
       tctx.save(); tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.drawImage(scene.shadowCache, 0, 0); tctx.restore();
     } else {
       bctx.setTransform(1, 0, 0, 1, 0, 0); bctx.clearRect(0, 0, bcv.width, bcv.height);
       bctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       const stepPx = 1.4 / DPR, n = Math.ceil(len / stepPx);
+      let bx0 = 1e9, by0 = 1e9, bx1 = -1e9;
       for (const L of scene.letters) {
-        const im = glyphImage(L), x0 = L.cx - im.iw / 2, y0 = L.cy - im.ih / 2;
-        for (let i = n; i >= 1; i--) bctx.drawImage(im.c, x0 + dx * i * stepPx, y0 + dy * i * stepPx, im.iw, im.ih);
+        const im = glyphImage(L), w = im.iw * ys, h = im.ih * ys, x0 = PX(L) - w / 2, y0 = PY(L) - h / 2;
+        bx0 = Math.min(bx0, x0); by0 = Math.min(by0, y0); bx1 = Math.max(bx1, x0 + w);
+        for (let i = n; i >= 1; i--) bctx.drawImage(im.c, x0 + dx * i * stepPx, y0 + dy * i * stepPx, w, h);
       }
       // colour the whole shadow: near the letters → black far away
-      const b = boxOf(scene.letters), sx = b.x0, sy = b.y0;
-      const gr = bctx.createLinearGradient(sx, sy, sx + dx * (full + (b.x1 - b.x0)), sy + dy * (full + (b.x1 - b.x0)));
+      const gr = bctx.createLinearGradient(bx0, by0, bx0 + dx * (full + (bx1 - bx0)), by0 + dy * (full + (bx1 - bx0)));
       gr.addColorStop(0, SHADOW_NEAR); gr.addColorStop(0.35, SHADOW_FAR); gr.addColorStop(1, YEAR_SHADOW_FAR);
       bctx.globalCompositeOperation = 'source-in'; bctx.fillStyle = gr; bctx.fillRect(0, 0, W, H);
       bctx.globalCompositeOperation = 'source-over';
       tctx.save(); tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.drawImage(bcv, 0, 0); tctx.restore();
       if (len >= full - 0.5) {               // fully extended: keep it, it never changes again
         const c = document.createElement('canvas'); c.width = bcv.width; c.height = bcv.height;
-        c.getContext('2d').drawImage(bcv, 0, 0); scene.shadowCache = c;
+        c.getContext('2d').drawImage(bcv, 0, 0); scene.shadowCache = c; scene.shadowKey = ys + ':' + ox;
       }
     }
   }
-  for (const L of scene.letters) drawLetter(tctx, L, L.cx, L.cy, 1, 0, 0, 0, 'face');
+  for (const L of scene.letters) drawLetter(tctx, L, PX(L), PY(L), ys, 0, 0, 0, 'face');
+  if (scene.imgs && scene.imgs.length) drawCards(scene, el, lay);
+}
+// the year's pictures, as prints on the left (clean layer: no film effect)
+function drawCards(scene, el, lay) {
+  const n = scene.imgs.length, T = performance.now();
+  const box = [CARD_BOX[0] * W * (n > 1 ? 0.8 : 1), CARD_BOX[1] * H * (n > 1 ? 0.8 : 1)];
+  const spots = n > 1 ? [[-0.05, -0.035, -6], [0.055, 0.05, 5]] : [[0, 0, -3]];
+  scene.imgs.forEach((m, i) => {
+    mediaEl(m); if (!mediaReady(m)) return;
+    const e = clamp01((el - 0.2 - 0.14 * i) / 0.6) * lay, ea = easeOutBack(e);
+    if (e <= 0.001) return;
+    const im = m.el, ar = im.naturalWidth / im.naturalHeight;
+    let cw = box[0], ch = cw / ar; if (ch > box[1]) { ch = box[1]; cw = ch * ar; }
+    const pad = Math.max(5 * k, 0.03 * Math.min(cw, ch));
+    const sp = spots[Math.min(i, spots.length - 1)];
+    const bob = Math.sin(T / 1000 * 0.7 + i * 2.1) * 0.004 * W;
+    const cx = CARD_X * W + sp[0] * W, cy = H / 2 + sp[1] * H + bob + (1 - ea) * 0.75 * H;
+    const rot = (sp[2] + (1 - ea) * -16 + Math.sin(T / 1000 * 0.5 + i) * 0.35) * Math.PI / 180;
+    vctx.save(); vctx.globalAlpha = clamp01(e * 3);
+    vctx.translate(cx, cy); vctx.rotate(rot);
+    vctx.shadowColor = 'rgba(0,0,0,0.5)'; vctx.shadowBlur = 34 * k * DPR; vctx.shadowOffsetY = 16 * k * DPR;
+    vctx.fillStyle = '#f6f3ec'; vctx.fillRect(-cw / 2 - pad, -ch / 2 - pad, cw + pad * 2, ch + pad * 2);
+    vctx.shadowColor = 'transparent';
+    vctx.drawImage(im, -cw / 2, -ch / 2, cw, ch);
+    vctx.restore();
+    mediaOn = true;
+  });
+}
+
+/* ---------- paper overlay: a print that unfolds in stop-motion and wiggles (clean layer) ---------- */
+const [pcv, pctx] = mk();
+function paperSheets(scene) {
+  const m = scene.media; mediaEl(m);
+  if (!mediaReady(m)) return null;
+  const key = W + ':' + DPR;
+  if (scene.sheets && scene.sheets.key === key) return scene.sheets;
+  const pw = PAPER_WIDTH * W, mg = 0.06 * pw, im = m.el, phW = pw - mg * 2, phH = phW * im.naturalHeight / im.naturalWidth;
+  const ph = mg + phH + 0.16 * pw;
+  const mkSheet = front => {
+    const c = document.createElement('canvas'); c.width = Math.ceil(pw * DPR); c.height = Math.ceil(ph * DPR);
+    const g = c.getContext('2d'); g.scale(DPR, DPR);
+    g.fillStyle = front ? '#f2ece0' : '#e7e0d1'; g.fillRect(0, 0, pw, ph);
+    for (let i = 0; i < 900; i++) {                                  // paper fibres
+      g.fillStyle = `rgba(${jit(i) > .5 ? '0,0,0' : '255,255,255'},${0.025 + jit(i + 9) * 0.04})`;
+      g.fillRect(jit(i * 3.1) * pw, jit(i * 7.7) * ph, 1 + jit(i * 1.3) * 3, 1);
+    }
+    if (front) {
+      g.drawImage(im, mg, mg, phW, phH);
+      g.strokeStyle = 'rgba(0,0,0,0.12)'; g.lineWidth = 1; g.strokeRect(mg + .5, mg + .5, phW - 1, phH - 1);
+      if (scene.caption) {
+        let size = 0.072 * pw; g.font = `${size}px ${CAPTION_FONT}`;
+        const tw = g.measureText(scene.caption).width; if (tw > phW) { size *= phW / tw; g.font = `${size}px ${CAPTION_FONT}`; }
+        g.fillStyle = '#1d1a16'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(scene.caption, pw / 2, mg + phH + (ph - mg - phH) / 2);
+      }
+    }
+    // creases
+    g.fillStyle = 'rgba(0,0,0,0.07)'; g.fillRect(pw / 2 - 0.5, 0, 1, ph); g.fillRect(0, ph / 2 - 0.5, pw, 1);
+    g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(pw / 2 + 0.5, 0, 1, ph); g.fillRect(0, ph / 2 + 0.5, pw, 1);
+    return c;
+  };
+  scene.sheets = { key, pw, ph, front: mkSheet(true), back: mkSheet(false) };
+  return scene.sheets;
+}
+// u = seconds into the unfold (0 → folded, below the frame; ~1.45 → fully open)
+function drawPaper(scene, u, T) {
+  const P = paperSheets(scene); if (!P) return;
+  const q = Math.floor(u * PAPER_FPS) / PAPER_FPS;                 // stop-motion
+  const ap = clamp01(q / 0.4), fx = easeInOut(clamp01((q - 0.45) / 0.45)), fy = easeInOut(clamp01((q - 0.95) / 0.45));
+  if (ap <= 0) return;
+  const { pw, ph, front, back } = P, D = DPR;
+  pctx.setTransform(1, 0, 0, 1, 0, 0); pctx.clearRect(0, 0, pcv.width, pcv.height); pctx.setTransform(D, 0, 0, D, 0, 0);
+  const slice = (img, sx, sy, sw, sh, dx, dy, dw, dh, shade) => {
+    if (dw < 0.5 || dh < 0.5) return;
+    pctx.drawImage(img, sx * D, sy * D, sw * D, sh * D, dx, dy, dw, dh);
+    if (shade > 0.01) { pctx.fillStyle = `rgba(0,0,0,${shade})`; pctx.fillRect(dx, dy, dw, dh); }
+  };
+  const hw = pw / 2, hh = ph / 2;
+  if (fy >= 1) slice(front, 0, 0, pw, ph, 0, 0, pw, ph, 0);
+  else {
+    if (fx >= 1) slice(front, 0, 0, pw, hh, 0, 0, pw, hh, 0);
+    else {
+      slice(front, 0, 0, hw, hh, 0, 0, hw, hh, 0);
+      const c = Math.cos(Math.PI * (1 - fx));                       // right flap swings open
+      if (c >= 0) slice(front, hw, 0, hw, hh, hw, 0, hw * c, hh, (1 - c) * 0.35);
+      else slice(back, hw, 0, hw, hh, hw - hw * -c, 0, hw * -c, hh, (1 + c) * 0.2);
+    }
+    const c2 = Math.cos(Math.PI * (1 - fy));                        // bottom half swings down from behind
+    if (fy > 0 && c2 > 0) slice(front, 0, hh, pw, hh, 0, hh, pw, hh * c2, (1 - c2) * 0.35);
+  }
+  const step = Math.floor(T / (1000 / PAPER_FPS));                  // wiggle, also in stop-motion
+  const wx = (jit(step * 1.7) - 0.5) * 6 * k, wy = (jit(step * 2.3) - 0.5) * 6 * k;
+  const wr = ((jit(step * 3.1) - 0.5) * 1.6 - 1.5 + (1 - easeOutBack(ap)) * 10) * Math.PI / 180;
+  const drift = Math.sin(T / 1000 * 0.4) * 0.006 * W;
+  const cx = W / 2 + (1 - fx) * pw / 4 + wx + drift, cy = H / 2 + (1 - fy) * ph / 4 + wy + (1 - easeOutBack(ap)) * H * 0.9;
+  vctx.save();
+  vctx.translate(cx, cy); vctx.rotate(wr);
+  vctx.shadowColor = 'rgba(0,0,0,0.55)'; vctx.shadowBlur = 40 * k * DPR; vctx.shadowOffsetY = 20 * k * DPR;
+  vctx.drawImage(pcv, 0, 0, Math.ceil(pw * D), Math.ceil(ph * D), -pw / 2 - (1 - fx) * pw / 4 * 0, -ph / 2, pw, ph);
+  vctx.restore();
+  mediaOn = true;
+}
+function dim(a) { if (a > 0.003) { vctx.save(); vctx.fillStyle = `rgba(0,0,0,${0.55 * a})`; vctx.fillRect(0, 0, W, H); vctx.restore(); mediaOn = true; } }
+function paperIdle(scene, T) { mediaIdle(scene.base, T); dim(1); drawPaper(scene, 9, T); }
+function trMediaPaper(A, B, s, sPrev, T) {
+  mediaIdle(A, T); dim(easeInOut(clamp01(s / 0.6))); drawPaper(B, s, T);
+  return { mono: A.mono, goo: 0, thresh: 0.5, morph: 0 };
+}
+const PAPER_AWAY = 0.95;
+function trPaperYear(A, B, s, sPrev, T) {
+  if (s < PAPER_AWAY) {
+    mediaIdle(A.base, T); dim(1 - easeInOut(clamp01((s - 0.4) / 0.55)));
+    drawPaper(A, 1.45 * (1 - s / PAPER_AWAY), T);
+    return { mono: A.base.mono, goo: 0, thresh: 0.5, morph: 0 };
+  }
+  return trMediaFly(A.base, B, s - PAPER_AWAY, sPrev - PAPER_AWAY, T);
 }
 
 /* ---------- intro: drawn on its own layer (clean, no film), composited by the shader ---------- */
@@ -1626,7 +1793,15 @@ function drawMedia(scene, a, lift, sc, capA, T) {
   c.save(); roundRectPath(c, R.x, R.y, R.w, R.h, rad); c.clip();
   c.fillStyle = '#111'; c.fillRect(R.x, R.y, R.w, R.h);
   mediaEl(m);
-  if (mediaReady(m)) {
+  if (!scene.src) {                               // placeholder until the real video arrives
+    c.strokeStyle = 'rgba(255,255,255,0.05)'; c.lineWidth = 14 * k;
+    for (let x = -R.h; x < R.w; x += 44 * k) { c.beginPath(); c.moveTo(R.x + x, R.y + R.h); c.lineTo(R.x + x + R.h, R.y); c.stroke(); }
+    const r = 0.04 * W, cx = R.x + R.w / 2, cy = R.y + R.h / 2 - 0.02 * H;
+    c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 2 * k; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.35)'; c.beginPath(); c.moveTo(cx - r * 0.3, cy - r * 0.42); c.lineTo(cx + r * 0.45, cy); c.lineTo(cx - r * 0.3, cy + r * 0.42); c.fill();
+    c.font = `${0.012 * W}px ${CAPTION_FONT}`; c.textAlign = 'center'; c.fillStyle = 'rgba(255,255,255,0.35)';
+    c.fillText('VIDEO PLACEHOLDER', cx, cy + r + 0.03 * H);
+  } else if (mediaReady(m)) {
     const src = m.isVideo && showPoster(m) ? m.poster : m.el;
     const iw = src.videoWidth || src.naturalWidth, ih = src.videoHeight || src.naturalHeight;
     const z = 1.0 + 0.04 * (0.5 - 0.5 * Math.cos(Math.min(1, ((T - scene.t0) / 1000) / 30) * Math.PI));
@@ -1662,8 +1837,8 @@ function drawMedia(scene, a, lift, sc, capA, T) {
     tctx.restore();
   }
 }
-function drawHeader(scene, sc, cy) {         // the year's letters, scaled about the centre and moved to cy
-  for (const L of scene.letters) drawLetter(tctx, L, W / 2 + (L.cx - W / 2) * sc, cy + (L.cy - H / 2) * sc, sc, 0, 0, 0, 'face');
+function drawHeader(scene, sc, cy, ox = 0) {  // the year's letters, scaled about the centre and moved to cy
+  for (const L of scene.letters) drawLetter(tctx, L, W / 2 + (L.cx - W / 2) * sc + ox, cy + (L.cy - H / 2) * sc, sc, 0, 0, 0, 'face');
 }
 function mediaIdle(scene, T) {
   drawHeader(scene, HEADER_SCALE, HEADER_Y * H);
@@ -1675,7 +1850,7 @@ function trYearMedia(A, B, s, sPrev, T) {
   if (s < 0.6) drawYear(A, YEAR_SHADOW_GROW * (1 - retract));
   else {
     const m = easeInOutCubic(clamp01((s - 0.6) / 0.8));
-    drawHeader(B, lerp(1, HEADER_SCALE, m), lerp(H / 2, HEADER_Y * H, m));
+    drawHeader(B, lerp(1, HEADER_SCALE, m), lerp(H / 2, HEADER_Y * H, m));   // (pictures already re-centred the year)
   }
   const f = clamp01((s - 1.05) / 0.7);
   const capA = easeInOut(clamp01((s - 1.45) / 0.5));
@@ -1686,7 +1861,13 @@ function trYearMedia(A, B, s, sPrev, T) {
 /* ---------- timeline ---------- */
 let tlCache = {};
 const tlLetters = y => tlCache[y] || (tlCache[y] = layoutYear(String(y)));
-const tlX = y => (y - TIMELINE[0]) * YEAR_SPACING;          // world x (share of W) of a year
+function tlX(y) {                                          // world x (share of W): marked years evenly spaced, years between them interpolated
+  const T = TIMELINE, n = T.length;
+  if (y <= T[0]) return (y - T[0]) * YEAR_SPACING / Math.max(1, T[1] - T[0]);
+  if (y >= T[n - 1]) return (n - 1) * YEAR_SPACING + (y - T[n - 1]) * YEAR_SPACING / Math.max(1, T[n - 1] - T[n - 2]);
+  let i = 0; while (T[i + 1] < y) i++;
+  return (i + (y - T[i]) / (T[i + 1] - T[i])) * YEAR_SPACING;
+}
 function drawTimeline(z, camX, amt, extra) {
   const years = [...new Set([...TIMELINE, ...extra])].sort((a, b) => a - b);
   const toSx = xw => W / 2 + (xw - camX) * W * z;
@@ -1695,10 +1876,9 @@ function drawTimeline(z, camX, amt, extra) {
   if (amt > 0.01) {
     tctx.save(); tctx.globalAlpha = amt; tctx.fillStyle = FACE_TOP;
     tctx.fillRect(0, axisY - 2 * k, W, 4 * k);
-    const y0 = Math.floor(TIMELINE[0] + camX / YEAR_SPACING - W / (2 * z * W * YEAR_SPACING)) - 1;
-    const y1 = Math.ceil(TIMELINE[0] + camX / YEAR_SPACING + W / (2 * z * W * YEAR_SPACING)) + 1;
-    for (let y = y0; y <= y1; y++) {
-      const x = toSx(tlX(y)), major = years.includes(y), h = (major ? 30 : y % 10 === 0 ? 20 : 11) * k;
+    for (let y = years[0] - 3; y <= years[years.length - 1] + 3; y++) {
+      const x = toSx(tlX(y)); if (x < -20 || x > W + 20) continue;
+      const major = years.includes(y), h = (major ? 30 : y % 10 === 0 ? 20 : 11) * k;
       tctx.fillRect(x - 1.5 * k, axisY, 3 * k, h);
       if (major) { tctx.beginPath(); tctx.arc(x, axisY, 9 * k, 0, Math.PI * 2); tctx.fill(); }
     }
@@ -1751,6 +1931,7 @@ function renderIdle(scene, T) {
   if (scene.cube) drawShape(CUBE, T);
   if (scene.kind === 'world') return { mono: 0, goo: 0, thresh: 0.5, morph: 0 };
   if (scene.kind === 'media') { mediaIdle(scene, T); return { mono: scene.mono, goo: 0, thresh: 0.5, morph: 0 }; }
+  if (scene.kind === 'paper') { paperIdle(scene, T); return { mono: scene.base ? scene.base.mono : 0, goo: 0, thresh: 0.5, morph: 0 }; }
   if (scene.kind === 'year') { drawYear(scene, (T - scene.t0) / 1000); return { mono: scene.mono, goo: 0, thresh: 0.5, morph: 0 }; }
   const list = scene.letters.map(L => {
     const dy = floatDy(L, T), dyPrev = floatDy(L, T - FRAME);
@@ -1858,6 +2039,9 @@ const TRANSITIONS = {
                                       t0: (A, B, now, dur) => now + (dur - YEAR_SHADOW_GROW) * 1000 - 50 }
                                   : { fn: trMediaFly, dur: () => SINK + FLY.zoomIn[1] - FLY.retract + YEAR_SHADOW_GROW,
                                       formedAt: SINK + FLY.zoomIn[1] - FLY.retract } },
+  'media>paper':              { fn: trMediaPaper,  dur: () => 1.5, formedAt: 0 },
+  'paper>year':               { fn: trPaperYear,   dur: () => PAPER_AWAY + SINK + FLY.zoomIn[1] - FLY.retract + YEAR_SHADOW_GROW,
+                                formedAt: PAPER_AWAY + SINK + FLY.zoomIn[1] - FLY.retract },
   'year>year':                { pick: (A, B) => A.year === B.year
                                   ? { fn: trYearColor, dur: () => 1.2, t0: (A, B, now) => now - YEAR_SHADOW_GROW * 1000 - 50 }
                                   : { fn: trFly, dur: () => FLY.zoomIn[1] + YEAR_SHADOW_GROW, formedAt: FLY.zoomIn[1] } },
@@ -2093,7 +2277,7 @@ gl.uniform3fv(U('uFaceTop'), hex(FACE_TOP)); gl.uniform3fv(U('uFaceBot'), hex(FA
 function resize() {
   const r = film.getBoundingClientRect();
   W = r.width; H = r.width * 9 / 16; k = W / 1600;
-  for (const c of [film, tcv, scv, bcv, mcv, icv, vcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  for (const c of [film, tcv, scv, bcv, mcv, icv, vcv, pcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
   gl.viewport(0, 0, film.width, film.height);
   gl.uniform2f(U('uRes'), film.width, film.height);
   gl.uniform1f(U('uDpr'), DPR); gl.uniform1f(U('uK'), k);
@@ -2134,7 +2318,7 @@ function loop(now) {
 /* ===================== editor: slide panel, live stage, notes, Present ===================== */
 let editing = true, thumbs = [];
 const app = document.getElementById('app'), stage = document.getElementById('stage');
-const KIND_NAME = { 'intro-square': 'Intro', 'intro-cube': 'Intro', 'intro-circle': 'Intro', title: 'Title', year: 'Year', media: 'Media' };
+const KIND_NAME = { 'intro-square': 'Intro', 'intro-cube': 'Intro', 'intro-circle': 'Intro', title: 'Title', year: 'Year', media: 'Media', paper: 'Overlay' };
 const sections = () => [...document.querySelectorAll('.reveal .slides > section')];
 
 function placeFilm() {                       // editing: the live slide sits in the stage; presenting: full screen
@@ -2172,7 +2356,8 @@ function renderThumbs() {
   const T = Math.floor(performance.now() / FRAME) * FRAME;
   scenes.forEach((sc, i) => {
     const th = thumbs[i]; if (!th || th.done) return;
-    if (sc.media && !mediaReady(sc.media)) { pending = true; return; }
+    const deps = [sc.media && sc.src ? sc.media : null, ...(sc.imgs || [])].filter(Boolean);
+    if (deps.some(m => (mediaEl(m), !mediaReady(m)))) { pending = true; return; }
     trans = null; cur = i; sc.t0 = T - 60000;
     drawLayers(T);
     gl.uniform1f(U('uTime'), 12); gl.uniform1f(U('uSeed'), 3); gl.uniform1f(U('uFlicker'), 1); gl.uniform2f(U('uWeave'), 0, 0);
