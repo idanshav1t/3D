@@ -17,76 +17,53 @@
   .reveal .slides, .reveal .backgrounds { display: none !important; }   /* sections are data only; the engine draws */
 
 
-  /* ===================== editor (PowerPoint-style normal view) ===================== */
-  :root { --chrome: #262626; --panel: #212121; --work: #181818; --line: #353535; --text: #e9e9e9; --dim: #9a9a9a; --accent: #f0b419; }
-  #app { position: fixed; inset: 0; z-index: 5; display: grid; grid-template-columns: 236px 1fr; grid-template-rows: 52px 1fr 26px;
-         font: 13px/1.35 "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; color: var(--text);
-         pointer-events: none; user-select: none; -webkit-user-select: none; }
-  #app > * { pointer-events: auto; }
+  /* ===================== editor: black, minimal, slides hidden until asked ===================== */
+  #app { position: fixed; inset: 0; z-index: 5; display: grid; grid-template-columns: 1fr; grid-template-rows: 56px 1fr;
+         font: 14px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #fff; background: #000;
+         user-select: none; -webkit-user-select: none; }
   body.presenting #app { display: none; }
-  #topbar { grid-column: 1 / 3; display: flex; align-items: center; gap: 14px; padding: 0 14px; background: var(--chrome); border-bottom: 1px solid var(--line); }
-  .tb-logo { width: 26px; height: 26px; border-radius: 6px; background: var(--accent); display: grid; place-items: center; flex: none; }
-  .tb-file { display: flex; flex-direction: column; min-width: 0; }
-  .tb-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tb-meta { color: var(--dim); font-size: 11px; }
-  .tb-spacer { flex: 1; }
-  .btn { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--line);
-         background: #303030; color: var(--text); font: 600 13px inherit; font-family: inherit; cursor: pointer; white-space: nowrap; }
-  .btn:hover { background: #3a3a3a; }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #1a1405; }
-  .btn.primary:hover { filter: brightness(1.08); }
-  .btn svg { width: 12px; height: 12px; flex: none; }
-  #panel { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 12px 10px 12px 6px; }
-  .t-item { display: grid; grid-template-columns: 26px 1fr; gap: 4px; align-items: start; padding: 5px 4px; border-radius: 6px; cursor: pointer; }
-  .t-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 2px; color: var(--dim); font-size: 12px; }
-  .t-fx { width: 11px; height: 11px; opacity: .8; }
-  .t-frame { position: relative; aspect-ratio: 16 / 9; border-radius: 3px; overflow: hidden; background: #000;
-             outline: 1px solid #3c3c3c; outline-offset: 0; }
+  #topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid #1c1c1c; }
+  .tb-name { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btn { height: 34px; padding: 0 16px; border-radius: 17px; border: 1px solid #fff; background: transparent; color: #fff;
+         font: 600 13px/1 inherit; font-family: inherit; cursor: pointer; white-space: nowrap; }
+  .btn.solid { background: #fff; color: #000; }
+  .btn:active { opacity: .7; }
+  #panel { display: none; overflow-y: auto; padding: 14px 12px; border-right: 1px solid #1c1c1c; }
+  body.slides-open #app { grid-template-columns: 188px 1fr; }
+  body.slides-open #panel { display: block; }
+  #thumbs { display: flex; flex-direction: column; gap: 12px; }
+  .t-item { position: relative; cursor: pointer; }
+  .t-frame { aspect-ratio: 16 / 9; border-radius: 4px; overflow: hidden; background: #111; outline: 1px solid #2a2a2a; }
   .t-frame canvas { width: 100%; height: 100%; display: block; }
-  .t-item:hover .t-frame { outline: 2px solid #5a5a5a; }
-  .t-item.sel .t-frame { outline: 2.5px solid var(--accent); outline-offset: 1px; }
-  .t-item.sel .t-side { color: var(--text); }
-  .t-vid { position: absolute; right: 5px; bottom: 5px; width: 18px; height: 18px; border-radius: 4px; background: rgba(0,0,0,.65); display: grid; place-items: center; }
-  #work { display: grid; grid-template-rows: 1fr auto; background: var(--work); min-width: 0; min-height: 0; }
+  .t-num { position: absolute; top: 5px; left: 5px; padding: 1px 6px; border-radius: 8px; font-size: 11px; font-weight: 600; color: #fff; background: rgba(0,0,0,.7); }
+  .t-item.sel .t-frame { outline: 2px solid #fff; outline-offset: 2px; }
+  body:not(.presenting) #film { z-index: 6; box-shadow: 0 0 0 1px #222; }
+  #work { display: grid; grid-template-rows: 1fr; min-width: 0; min-height: 0; }
   #stage { position: relative; min-height: 0; }
-  #notes { height: 118px; border-top: 1px solid var(--line); background: var(--panel); padding: 10px 18px; overflow-y: auto; }
-  .n-label { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
-  #notes-text { font-size: 14px; direction: rtl; text-align: right; white-space: pre-wrap; user-select: text; -webkit-user-select: text; }
-  #notes-text:empty::before { content: "No notes for this slide"; color: #666; }
-  #status { grid-column: 1 / 3; display: flex; align-items: center; gap: 18px; padding: 0 14px; background: var(--chrome); border-top: 1px solid var(--line);
-            color: var(--dim); font-size: 12px; }
-  #status .st-keys { margin-left: auto; }
-  kbd { font: 11px inherit; font-family: inherit; padding: 1px 5px; border-radius: 3px; border: 1px solid #4a4a4a; color: #cfcfcf; }
-  body:not(.presenting) #film { z-index: 6; box-shadow: 0 10px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06); }
+  #notes { display: none; max-height: 110px; overflow-y: auto; padding: 10px 18px 14px; border-top: 1px solid #1c1c1c;
+           direction: rtl; text-align: right; white-space: pre-wrap; color: #bdbdbd; user-select: text; -webkit-user-select: text; }
+  body.slides-open #work { grid-template-rows: 1fr auto; }
+  body.slides-open #notes:not(:empty) { display: block; }
   @media (max-width: 760px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: 52px auto 1fr; }
-    #topbar, #status { grid-column: 1; }
-    #status, #notes, .tb-meta, #btn-current .lbl-long { display: none; }
-    #work { grid-row: 2; height: calc(100vw * 9 / 16 + 24px); grid-template-rows: 1fr; }
-    #panel { grid-row: 3; border-right: 0; border-top: 1px solid var(--line); padding: 12px; display: block; }
-    #thumbs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
-    .t-item { grid-template-columns: 18px minmax(0, 1fr); min-width: 0; padding: 4px 2px; }
-    .t-side { font-size: 11px; }
-    #topbar { gap: 10px; padding: 0 10px; }
-    .tb-name { font-size: 13px; }
-    #btn-current { display: none; }
-    .btn { padding: 0 12px; }
+    #app, body.slides-open #app { grid-template-columns: 1fr; grid-template-rows: 56px 1fr auto; }
+    #work { grid-row: 2; }
+    #panel { grid-row: 3; border-right: 0; border-top: 1px solid #1c1c1c; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); overflow-x: auto; overflow-y: hidden; }
+    #thumbs { flex-direction: row; gap: 8px; }
+    .t-item { flex: none; width: 108px; }
+    body.slides-open #notes:not(:empty) { display: none; }
+    .btn { padding: 0 14px; }
   }
-  .t-item, .t-frame { min-width: 0; }
 </style>
 </head>
 <body>
 <div id="app">
   <header id="topbar">
-    <div class="tb-logo"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 3.5l5-2.5 5 2.5v7L7 13l-5-2.5z" fill="none" stroke="#1a1405" stroke-width="1.6"/><path d="M2 3.5L7 6l5-2.5M7 6v7" fill="none" stroke="#1a1405" stroke-width="1.6"/></svg></div>
-    <div class="tb-file"><div class="tb-name" id="tb-name"></div><div class="tb-meta" id="tb-meta"></div></div>
-    <div class="tb-spacer"></div>
-    <button class="btn" id="btn-current" title="Present from current slide (Shift+F5)"><svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg><span class="lbl-long">From Current Slide</span><span class="lbl-short"></span></button>
-    <button class="btn primary" id="btn-start" title="Present from beginning (F5)"><svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>Present</button>
+    <div class="tb-name" id="tb-name"></div>
+    <button class="btn" id="btn-slides">Slides</button>
+    <button class="btn solid" id="btn-start">Present</button>
   </header>
   <aside id="panel"><div id="thumbs"></div></aside>
-  <main id="work"><div id="stage"></div><div id="notes"><div class="n-label">Notes</div><div id="notes-text"></div></div></main>
-  <footer id="status"><span id="st-slide"></span><span id="st-kind"></span><span class="st-keys"><kbd>F5</kbd> Present &nbsp; <kbd>⇧F5</kbd> From current &nbsp; <kbd>↑</kbd><kbd>↓</kbd> Select &nbsp; <kbd>Esc</kbd> Back to editor</span></footer>
+  <main id="work"><div id="stage"></div><div id="notes"></div></main>
 </div>
 <canvas id="film"></canvas>
 <canvas id="text"></canvas>
@@ -1590,7 +1567,9 @@ const easeInOutCubic = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3)
 /* ---------- media slides ---------- */
 function loadMedia(src) {                    // src = a name in the media folder, or a URL; created once its file has arrived
   const type = MEDIA_LIST[src] || (/\.(mp4|webm|mov)(\?|$)/i.test(src) ? 'video/mp4' : 'image/*');
-  return { src, el: null, isVideo: type.startsWith('video'), manual: type.startsWith('video') };
+  const m = { src, el: null, isVideo: type.startsWith('video'), manual: type.startsWith('video'), poster: null };
+  if (m.isVideo && MEDIA_LIST[src]) { m.poster = new Image(); m.poster.src = (MEDIA_BASE || 'media').replace(/\/$/, '') + '/posters/' + src + '.jpg'; }
+  return m;
 }
 function mediaEl(m) {
   if (!m) return null;
@@ -1608,7 +1587,9 @@ function mediaEl(m) {
   m.el.src = url;
   return m.el;
 }
-const mediaReady = m => !!mediaEl(m) && (m.isVideo ? m.el.readyState >= 2 : m.el.complete && m.el.naturalWidth > 0);
+const posterOk = m => m && m.poster && m.poster.complete && m.poster.naturalWidth > 0;
+const showPoster = m => posterOk(m) && (!m.el || m.el.readyState < 2 || (m.el.paused && m.el.currentTime < 0.05));
+const mediaReady = m => (m && m.isVideo && posterOk(m)) || (!!mediaEl(m) && (m.isVideo ? m.el.readyState >= 2 : m.el.complete && m.el.naturalWidth > 0));
 function mediaRect() { const w = MEDIA_WIDTH * W, h = w * 9 / 16; return { x: W / 2 - w / 2, y: MEDIA_Y * H - h / 2, w, h }; }
 function roundRectPath(c, x, y, w, h, r) {
   c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
@@ -1636,14 +1617,16 @@ function drawMedia(scene, a, lift, sc, capA, T) {
   }
   tctx.save(); roundRectPath(tctx, R.x, R.y, R.w, R.h, rad); tctx.clip();
   tctx.fillStyle = '#111'; tctx.fillRect(R.x, R.y, R.w, R.h);
+  mediaEl(m);
   if (mediaReady(m)) {
-    const iw = m.isVideo ? m.el.videoWidth : m.el.naturalWidth, ih = m.isVideo ? m.el.videoHeight : m.el.naturalHeight;
+    const src = m.isVideo && showPoster(m) ? m.poster : m.el;
+    const iw = src.videoWidth || src.naturalWidth, ih = src.videoHeight || src.naturalHeight;
     const z = 1.0 + 0.04 * (0.5 - 0.5 * Math.cos(Math.min(1, ((T - scene.t0) / 1000) / 30) * Math.PI));
     const s0 = Math.max(R.w / iw, R.h / ih) * z, dw = iw * s0, dh = ih * s0;
-    tctx.drawImage(m.el, R.x + (R.w - dw) / 2, R.y + (R.h - dh) / 2, dw, dh);
+    tctx.drawImage(src, R.x + (R.w - dw) / 2, R.y + (R.h - dh) / 2, dw, dh);
   }
-  if (m && m.manual && m.el) {                 // video: progress line, and a play button while paused
-    const v = m.el, p = v.duration ? v.currentTime / v.duration : 0;
+  if (m && m.manual && (m.el || m.poster)) {    // video: progress line, and a play button while paused
+    const v = m.el || { paused: true, currentTime: 0, duration: 0 }, p = v.duration ? v.currentTime / v.duration : 0;
     tctx.fillStyle = 'rgba(255,250,240,0.25)'; tctx.fillRect(R.x, R.y + R.h - 4 * k, R.w, 4 * k);
     tctx.fillStyle = FACE_TOP; tctx.fillRect(R.x, R.y + R.h - 4 * k, R.w * p, 4 * k);
     if (v.paused) {
@@ -2136,7 +2119,7 @@ const sections = () => [...document.querySelectorAll('.reveal .slides > section'
 
 function placeFilm() {                       // editing: the live slide sits in the stage; presenting: full screen
   if (editing) {
-    const r = stage.getBoundingClientRect(), pad = Math.min(36, r.width * 0.05);
+    const r = stage.getBoundingClientRect(), pad = Math.min(32, r.width * 0.04);
     const w = Math.max(80, Math.min(r.width - pad * 2, (r.height - pad * 2) * 16 / 9));
     Object.assign(film.style, { left: (r.left + r.width / 2) + 'px', top: (r.top + r.height / 2) + 'px', width: w + 'px' });
   } else Object.assign(film.style, { left: '', top: '', width: '' });
@@ -2149,13 +2132,10 @@ function hasTransitionInto(i) {
 function buildEditor() {
   document.getElementById('tb-name').textContent = document.title;
   const secs = sections(), box = document.getElementById('thumbs');
-  document.getElementById('tb-meta').textContent = secs.length + ' slides';
   box.innerHTML = ''; thumbs = [];
   secs.forEach((sec, i) => {
     const it = document.createElement('div'); it.className = 't-item';
-    const isVid = scenes[i] && scenes[i].media && scenes[i].media.isVideo;
-    it.innerHTML = `<div class="t-side"><span>${i + 1}</span>${hasTransitionInto(i) ? '<svg class="t-fx" viewBox="0 0 12 12"><path d="M6 .5l1.6 3.4 3.7.4-2.8 2.5.8 3.7L6 8.6 2.7 10.5l.8-3.7L.7 4.3l3.7-.4z" fill="currentColor"/></svg>' : ''}</div>
-      <div class="t-frame"><canvas></canvas>${isVid ? '<div class="t-vid"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 0l7 4-7 4z" fill="#fff"/></svg></div>' : ''}</div>`;
+    it.innerHTML = `<div class="t-frame"><canvas></canvas></div><span class="t-num">${i + 1}</span>`;
     it.onclick = () => goEdit(i);
     it.ondblclick = () => present(i);
     box.appendChild(it);
@@ -2189,9 +2169,7 @@ function selectThumb(i) {
   const t = thumbs[i]; if (t) t.it.scrollIntoView({ block: 'nearest' });
   const sec = sections()[i]; if (!sec) return;
   const notes = sec.querySelector('aside.notes');
-  document.getElementById('notes-text').textContent = notes ? notes.textContent.trim() : '';
-  document.getElementById('st-slide').textContent = `Slide ${i + 1} of ${sections().length}`;
-  document.getElementById('st-kind').textContent = KIND_NAME[sec.dataset.scene || 'title'] || '';
+  document.getElementById('notes').textContent = notes ? notes.textContent.trim() : '';
 }
 function goEdit(i) {
   i = Math.max(0, Math.min(sections().length - 1, i));
@@ -2214,7 +2192,12 @@ function backToEditor() {
   placeFilm(); selectThumb(cur);
 }
 document.getElementById('btn-start').onclick = () => present(0);
-document.getElementById('btn-current').onclick = () => present(cur);
+const btnSlides = document.getElementById('btn-slides');
+btnSlides.onclick = () => {
+  const open = document.body.classList.toggle('slides-open');
+  btnSlides.textContent = open ? 'Hide' : 'Slides';
+  placeFilm(); if (open) selectThumb(cur);
+};
 document.addEventListener('keydown', e => {
   if (e.key === 'F5') { e.preventDefault(); present(e.shiftKey ? cur : 0); return; }
   if (!editing) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); backToEditor(); } return; }
