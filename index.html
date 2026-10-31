@@ -118,16 +118,16 @@
   </section>
 
   <section data-scene="year" data-year="1972" data-mono="off" data-imgs="y1972-hand" data-names="A Computer Animated Hand"></section>
-  <section data-scene="media" data-year="1972" data-mono="off" data-caption="A Computer Animated Hand"></section>
+  <section data-scene="media" data-year="1972" data-mono="off" data-src="1972" data-caption="A Computer Animated Hand"></section>
 
   <section data-scene="year" data-year="1976" data-mono="off" data-imgs="y1976-futureworld" data-names="Futureworld"></section>
-  <section data-scene="media" data-year="1976" data-mono="off" data-caption="Futureworld"></section>
+  <section data-scene="media" data-year="1976" data-mono="off" data-src="1976" data-caption="Futureworld"></section>
 
   <section data-scene="year" data-year="1982" data-mono="off" data-imgs="y1982-tron" data-names="Tron"></section>
-  <section data-scene="media" data-year="1982" data-mono="off" data-caption="Tron"></section>
+  <section data-scene="media" data-year="1982" data-mono="off" data-src="1982-tron" data-caption="Tron"></section>
 
   <section data-scene="year" data-year="1982" data-mono="off" data-imgs="y1982-startrek" data-names="Star Trek II: The Wrath of Khan"></section>
-  <section data-scene="media" data-year="1982" data-mono="off" data-caption="Star Trek II: The Wrath of Khan"></section>
+  <section data-scene="media" data-year="1982" data-mono="off" data-src="1982-startrek" data-caption="Star Trek II: The Wrath of Khan"></section>
 
   <section data-scene="year" data-year="1986" data-mono="off" data-imgs="y1986-pixar" data-names="Pixar"></section>
 
@@ -135,7 +135,7 @@
     <aside class="notes">הסרט הראשון של פיקסאר.</aside>
   </section>
 
-  <section data-scene="media" data-year="1986" data-mono="off" data-caption="Pixar"></section>
+  <section data-scene="media" data-year="1986" data-mono="off" data-src="1986-pixar" data-caption="Pixar"></section>
 
   <section data-scene="year" data-year="1988" data-mono="off" data-imgs="y1988-pixar-software" data-names="RenderMan"></section>
   <section data-scene="media" data-year="1988" data-mono="off" data-caption="RenderMan"></section>
@@ -1166,8 +1166,8 @@ Please report this to https://github.com/markedjs/marked.`,e){let e=`<p>An error
 /* MEDIA_BASE set: media is streamed from there (e.g. a GitHub Pages site) and this file stays small.
    MEDIA_BASE empty: media comes from media/<name>.js next to this file (offline folder version). */
 const MEDIA_BASE = "media";
-const MEDIA_LIST = {"1968": "image/jpeg", "1971": "video/mp4", "catmull": "image/jpeg", "y1972-hand": "image/jpeg", "y1976-futureworld": "image/jpeg", "y1982-startrek": "image/jpeg", "y1982-tron": "image/jpeg", "y1986-luxo": "image/jpeg", "y1986-pixar": "image/jpeg", "y1988-pixar-software": "image/jpeg", "y1991-t2": "image/jpeg", "y1993-jurassic": "image/jpeg", "y1995-pixar-films": "image/jpeg"};            // name → mime type (written by the build)
-const MEDIA_EXT  = {"1968": ".jpg", "1971": ".mp4", "catmull": ".jpg", "y1972-hand": ".jpg", "y1976-futureworld": ".jpg", "y1982-startrek": ".jpg", "y1982-tron": ".jpg", "y1986-luxo": ".jpg", "y1986-pixar": ".jpg", "y1988-pixar-software": ".jpg", "y1991-t2": ".jpg", "y1993-jurassic": ".jpg", "y1995-pixar-films": ".jpg"};             // name → file extension
+const MEDIA_LIST = {"1968": "image/jpeg", "1971": "video/mp4", "1972": "video/mp4", "1976": "video/mp4", "1982-startrek": "video/mp4", "1982-tron": "video/mp4", "1986-pixar": "video/mp4", "catmull": "image/jpeg", "y1972-hand": "image/jpeg", "y1976-futureworld": "image/jpeg", "y1982-startrek": "image/jpeg", "y1982-tron": "image/jpeg", "y1986-luxo": "image/jpeg", "y1986-pixar": "image/jpeg", "y1988-pixar-software": "image/jpeg", "y1991-t2": "image/jpeg", "y1993-jurassic": "image/jpeg", "y1995-pixar-films": "image/jpeg"};            // name → mime type (written by the build)
+const MEDIA_EXT  = {"1968": ".jpg", "1971": ".mp4", "1972": ".mp4", "1976": ".mp4", "1982-startrek": ".mp4", "1982-tron": ".mp4", "1986-pixar": ".mp4", "catmull": ".jpg", "y1972-hand": ".jpg", "y1976-futureworld": ".jpg", "y1982-startrek": ".jpg", "y1982-tron": ".jpg", "y1986-luxo": ".jpg", "y1986-pixar": ".jpg", "y1988-pixar-software": ".jpg", "y1991-t2": ".jpg", "y1993-jurassic": ".jpg", "y1995-pixar-films": ".jpg"};             // name → file extension
 const MEDIA_URLS = {}, MEDIA_BLOBS = {}, MEDIA_FALLBACK = {};
 function mediaArrived(name, type, b64) {      // called by each media/<name>.js
   const bin = atob(b64), buf = new Uint8Array(bin.length);
@@ -1241,7 +1241,7 @@ const CAPTION_SIZE  = 0.036;        // caption size (share of slide width)
 
 // timeline (year → another year flies the camera along it)
 const TIMELINE = [1968, 1971, 1972, 1976, 1982, 1986, 1988, 1991, 1993, 1995];
-const YEAR_SPACING = 0.75;          // distance between neighbouring marked years (share of slide width, at full zoom)
+const YEAR_SPACING = 1.1;           // distance between neighbouring marked years (share of slide width, at full zoom)
 const TIMELINE_ZOOM = 0.21;         // how far the camera pulls back (lower = more years visible)
 const FLY = { retract: 1.0, outEnd: 2.1, pan: [1.65, 2.75], zoomIn: [2.25, 3.4] };   // seconds
 
@@ -1278,6 +1278,7 @@ const tctx = tcv.getContext('2d');
 const mk = () => { const c = document.createElement('canvas'); return [c, c.getContext('2d')]; };
 const [scv, sctx] = mk();   // shapes (tone-encoded, read by the shader)
 const [bcv, bctx] = mk();   // soft-shadow buffer
+const [bcv2, bctx2] = mk(); // second buffer: the long shadow doubles by copying between the two (never a canvas onto itself)
 const [mcv, mctx] = mk();   // morph buffer
 const [vcv, vctx] = mk();   // media layer (composited after the film effect, untouched by it)
 let mediaOn = false, mediaWas = false, shapesOn = false, shapesWas = true;
@@ -1577,10 +1578,11 @@ function yearShadow(scene, PX, PY, ys, g, key) {
   // so the shadow's motion is spread over the visible part only (no rushing through the last moment)
   let reach = 0;
   for (const L of scene.letters) {
-    const im = glyphImage(L), w = im.iw * ys, h = im.ih * ys, x0 = PX(L) - w / 2, y0 = PY(L) - h / 2;
-    const tx = dx > 1e-6 ? (W - x0) / dx : dx < -1e-6 ? (x0 + w) / -dx : 1e9;
-    const ty = dy > 1e-6 ? (H - y0) / dy : dy < -1e-6 ? (y0 + h) / -dy : 1e9;
-    reach = Math.max(reach, Math.min(tx, ty) + 4);
+    const w = L.w * ys, h = L.cap * ys, x0 = PX(L) - w / 2, y0 = PY(L) - h / 2;
+    const exitAt = (x, y) => Math.min(dx > 1e-6 ? (W - x) / dx : dx < -1e-6 ? x / -dx : 1e9, dy > 1e-6 ? (H - y) / dy : dy < -1e-6 ? y / -dy : 1e9);
+    // the new pixels at the shadow's tip come from the digit's forward-facing edge (for down-right: top-right → bottom-left)
+    const ax = dy >= 0 ? x0 + w : x0, ay = dx >= 0 ? y0 : y0 + h, bx = dy >= 0 ? x0 : x0 + w, by = dx >= 0 ? y0 + h : y0;
+    for (let t = 0; t <= 1; t += 1 / 16) reach = Math.max(reach, exitAt(ax + (bx - ax) * t, ay + (by - ay) * t) + 4);
   }
   const rest = YEAR_SHADOW_REST * W * ys;
   const len = g >= 1 ? full : lerp(rest, Math.max(rest, Math.min(reach, full)), clamp01(g));
@@ -1603,32 +1605,39 @@ function yearShadow(scene, PX, PY, ys, g, key) {
         bctx.drawImage(im.c, x0 + Math.round(vx) / DPR, y0 + Math.round(vy) / DPR, w, h);   // stamp 1
       }
       bctx.setTransform(1, 0, 0, 1, 0, 0);
+      bctx2.setTransform(1, 0, 0, 1, 0, 0); bctx2.clearRect(0, 0, bcv2.width, bcv2.height);
       const CW = bcv.width, CH = bcv.height;
       let r0x = Math.max(0, Math.floor((bx0 * DPR) + Math.round(vx)) - 2), r0y = Math.max(0, Math.floor((by0 * DPR) + Math.round(vy)) - 2);
       let r1x = Math.min(CW, Math.ceil((bx1 * DPR) + Math.round(vx)) + 2), r1y = Math.min(CH, Math.ceil((by1 * DPR) + Math.round(vy)) + 2);
-      const shiftCopy = m => {                                                   // stack ∪= stack shifted by m steps
+      let src = bcv, dst = bcv2, dctx = bctx2;
+      const shiftCopy = m => {                                                   // next = stack ∪ stack shifted by m steps
         const ox = Math.round(m * vx), oy = Math.round(m * vy);
         if (r1x <= r0x || r1y <= r0y) return;
-        bctx.drawImage(bcv, r0x, r0y, r1x - r0x, r1y - r0y, r0x + ox, r0y + oy, r1x - r0x, r1y - r0y);
-        r0x = Math.max(0, Math.min(r0x, r0x + ox)); r0y = Math.max(0, Math.min(r0y, r0y + oy));
-        r1x = Math.min(CW, Math.max(r1x, r1x + ox)); r1y = Math.min(CH, Math.max(r1y, r1y + oy));
+        const n0x = Math.max(0, Math.min(r0x, r0x + ox)), n0y = Math.max(0, Math.min(r0y, r0y + oy));
+        const n1x = Math.min(CW, Math.max(r1x, r1x + ox)), n1y = Math.min(CH, Math.max(r1y, r1y + oy));
+        dctx.clearRect(n0x, n0y, n1x - n0x, n1y - n0y);
+        dctx.drawImage(src, r0x, r0y, r1x - r0x, r1y - r0y, r0x, r0y, r1x - r0x, r1y - r0y);
+        dctx.drawImage(src, r0x, r0y, r1x - r0x, r1y - r0y, r0x + ox, r0y + oy, r1x - r0x, r1y - r0y);
+        r0x = n0x; r0y = n0y; r1x = n1x; r1y = n1y;
+        const t = src; src = dst; dst = t; dctx = dst === bcv ? bctx : bctx2;
       };
       let m = 1;
       while (m * 2 <= n) { shiftCopy(m); m *= 2; }                              // stamps 1..m
       if (m < n) shiftCopy(n - m);                                                // stamps 1..n
-      bctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      const SB = src, sbx = src === bcv ? bctx : bctx2;                          // the buffer holding the finished stack
+      sbx.setTransform(DPR, 0, 0, DPR, 0, 0);
       // colour the whole shadow: near the letters → black far away
-      const gr = bctx.createLinearGradient(bx0, by0, bx0 + dx * (full + (bx1 - bx0)), by0 + dy * (full + (bx1 - bx0)));
+      const gr = sbx.createLinearGradient(bx0, by0, bx0 + dx * (full + (bx1 - bx0)), by0 + dy * (full + (bx1 - bx0)));
       gr.addColorStop(0, SHADOW_NEAR); gr.addColorStop(0.35, SHADOW_FAR); gr.addColorStop(1, YEAR_SHADOW_FAR);
-      bctx.globalCompositeOperation = 'source-in'; bctx.fillStyle = gr;               // only the shadow's own area
-      bctx.fillRect(r0x / DPR, r0y / DPR, (r1x - r0x) / DPR, (r1y - r0y) / DPR);
-      bctx.globalCompositeOperation = 'source-over';
+      sbx.globalCompositeOperation = 'source-in'; sbx.fillStyle = gr;               // only the shadow's own area
+      sbx.fillRect(r0x / DPR, r0y / DPR, (r1x - r0x) / DPR, (r1y - r0y) / DPR);
+      sbx.globalCompositeOperation = 'source-over';
       tctx.save(); tctx.setTransform(1, 0, 0, 1, 0, 0);
-      if (r1x > r0x && r1y > r0y) tctx.drawImage(bcv, r0x, r0y, r1x - r0x, r1y - r0y, r0x, r0y, r1x - r0x, r1y - r0y);
+      if (r1x > r0x && r1y > r0y) tctx.drawImage(SB, r0x, r0y, r1x - r0x, r1y - r0y, r0x, r0y, r1x - r0x, r1y - r0y);
       tctx.restore();
       if (len >= full - 0.5) {               // fully extended: keep it, it never changes again
         const c = document.createElement('canvas'); c.width = bcv.width; c.height = bcv.height;
-        c.getContext('2d').drawImage(bcv, 0, 0); scene.shadowCache = c; scene.shadowKey = key;
+        c.getContext('2d').drawImage(SB, 0, 0); scene.shadowCache = c; scene.shadowKey = key;
       }
     }
   }
@@ -2366,7 +2375,7 @@ const TRANSITIONS = {
                                       formedAt: SINK + FLY.zoomIn[1] - FLY.retract } },
   'media>paper':              { fn: trMediaPaper,  dur: () => 1.5, formedAt: 0 },
   'year>paper':               { fn: trBasePaper,   dur: () => 1.5, formedAt: 0 },
-  'paper>media':              { fn: trPaperMedia,  dur: () => PAPER_AWAY + 2.3, formedAt: 0 },
+  'paper>media':              { fn: trPaperMedia,  dur: () => PAPER_AWAY + 2.45, formedAt: 0 },
   'paper>year':               { fn: trPaperYear,   dur: () => PAPER_AWAY + SINK + FLY.zoomIn[1] - FLY.retract + YEAR_SHADOW_GROW,
                                 formedAt: PAPER_AWAY + SINK + FLY.zoomIn[1] - FLY.retract },
   'year>year':                { pick: (A, B) => A.year === B.year
@@ -2643,7 +2652,7 @@ gl.uniform3fv(U('uFaceTop'), hex(FACE_TOP)); gl.uniform3fv(U('uFaceBot'), hex(FA
 function resize() {
   const r = film.getBoundingClientRect();
   W = r.width; H = r.width * 9 / 16; k = W / 1600;
-  for (const c of [film, tcv, scv, bcv, mcv, icv, vcv, pcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  for (const c of [film, tcv, scv, bcv, bcv2, mcv, icv, vcv, pcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
   gl.viewport(0, 0, film.width, film.height);
   gl.uniform2f(U('uRes'), film.width, film.height);
   gl.uniform1f(U('uDpr'), DPR); gl.uniform1f(U('uK'), k);
@@ -2669,7 +2678,7 @@ let perfEma = 16, perfLast = 0, perfCheck = 0;
 function setQuality(d) {
   DPR = d;
   const r = film.getBoundingClientRect();
-  for (const c of [film, tcv, scv, bcv, mcv, icv, vcv, pcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  for (const c of [film, tcv, scv, bcv, bcv2, mcv, icv, vcv, pcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
   gl.viewport(0, 0, film.width, film.height); gl.uniform2f(U('uRes'), film.width, film.height); gl.uniform1f(U('uDpr'), DPR);
   const clear = sc => { if (!sc) return; sc.shadowCache = null; sc.sheets = null; (sc.letters || []).forEach(L => { L.img = null; L.face = null; }); };
   scenes.forEach(clear); Object.values(tlCache).forEach(ls => ls.forEach(L => { L.img = null; })); spriteCache = {};
