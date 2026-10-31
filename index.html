@@ -1214,6 +1214,8 @@ const mk = () => { const c = document.createElement('canvas'); return [c, c.getC
 const [scv, sctx] = mk();   // shapes (tone-encoded, read by the shader)
 const [bcv, bctx] = mk();   // soft-shadow buffer
 const [mcv, mctx] = mk();   // morph buffer
+const [vcv, vctx] = mk();   // media layer (composited after the film effect, untouched by it)
+let mediaOn = false, mediaWas = false;
 const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
 let W = 1600, H = 900, k = 1;
 const FRAME = 1000 / ANIM_FPS;
@@ -1615,32 +1617,39 @@ function drawMedia(scene, a, lift, sc, capA, T) {
     tctx.save(); tctx.shadowColor = `rgba(0,0,0,${al})`; tctx.shadowBlur = blur * k * DPR * sc; tctx.shadowOffsetY = off * k * DPR * sc;
     roundRectPath(tctx, R.x, R.y, R.w, R.h, rad); tctx.fillStyle = '#000'; tctx.fill(); tctx.restore();
   }
-  tctx.save(); roundRectPath(tctx, R.x, R.y, R.w, R.h, rad); tctx.clip();
-  tctx.fillStyle = '#111'; tctx.fillRect(R.x, R.y, R.w, R.h);
+  tctx.restore();
+  // the picture itself goes on its own clean layer: the film effect never touches it
+  const c = vctx;
+  c.save();
+  c.globalAlpha = a;
+  c.translate(W / 2, R.y + R.h / 2 + lift); c.scale(sc, sc); c.translate(-W / 2, -(R.y + R.h / 2));
+  c.save(); roundRectPath(c, R.x, R.y, R.w, R.h, rad); c.clip();
+  c.fillStyle = '#111'; c.fillRect(R.x, R.y, R.w, R.h);
   mediaEl(m);
   if (mediaReady(m)) {
     const src = m.isVideo && showPoster(m) ? m.poster : m.el;
     const iw = src.videoWidth || src.naturalWidth, ih = src.videoHeight || src.naturalHeight;
     const z = 1.0 + 0.04 * (0.5 - 0.5 * Math.cos(Math.min(1, ((T - scene.t0) / 1000) / 30) * Math.PI));
     const s0 = Math.max(R.w / iw, R.h / ih) * z, dw = iw * s0, dh = ih * s0;
-    tctx.drawImage(src, R.x + (R.w - dw) / 2, R.y + (R.h - dh) / 2, dw, dh);
+    c.drawImage(src, R.x + (R.w - dw) / 2, R.y + (R.h - dh) / 2, dw, dh);
   }
   if (m && m.manual && (m.el || m.poster)) {    // video: progress line, and a play button while paused
     const v = m.el || { paused: true, currentTime: 0, duration: 0 }, p = v.duration ? v.currentTime / v.duration : 0;
-    tctx.fillStyle = 'rgba(255,250,240,0.25)'; tctx.fillRect(R.x, R.y + R.h - 4 * k, R.w, 4 * k);
-    tctx.fillStyle = FACE_TOP; tctx.fillRect(R.x, R.y + R.h - 4 * k, R.w * p, 4 * k);
+    c.fillStyle = 'rgba(255,255,255,0.25)'; c.fillRect(R.x, R.y + R.h - 4 * k, R.w, 4 * k);
+    c.fillStyle = '#fff'; c.fillRect(R.x, R.y + R.h - 4 * k, R.w * p, 4 * k);
     if (v.paused) {
       const cx = R.x + R.w / 2, cy = R.y + R.h / 2, r = 0.045 * W;
-      tctx.fillStyle = 'rgba(0,0,0,0.45)'; tctx.beginPath(); tctx.arc(cx, cy, r, 0, Math.PI * 2); tctx.fill();
-      tctx.strokeStyle = 'rgba(255,250,240,0.6)'; tctx.lineWidth = 2 * k; tctx.stroke();
-      tctx.fillStyle = FACE_TOP; tctx.beginPath();
-      tctx.moveTo(cx - r * 0.3, cy - r * 0.42); tctx.lineTo(cx + r * 0.45, cy); tctx.lineTo(cx - r * 0.3, cy + r * 0.42); tctx.closePath(); tctx.fill();
+      c.fillStyle = 'rgba(0,0,0,0.45)'; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = 'rgba(255,255,255,0.6)'; c.lineWidth = 2 * k; c.stroke();
+      c.fillStyle = '#fff'; c.beginPath();
+      c.moveTo(cx - r * 0.3, cy - r * 0.42); c.lineTo(cx + r * 0.45, cy); c.lineTo(cx - r * 0.3, cy + r * 0.42); c.closePath(); c.fill();
     }
   }
-  tctx.restore();
-  roundRectPath(tctx, R.x + 0.5, R.y + 0.5, R.w - 1, R.h - 1, rad);
-  tctx.strokeStyle = 'rgba(255,250,240,0.22)'; tctx.lineWidth = 1.2 * k; tctx.stroke();
-  tctx.restore();
+  c.restore();
+  roundRectPath(c, R.x + 0.5, R.y + 0.5, R.w - 1, R.h - 1, rad);
+  c.strokeStyle = 'rgba(255,255,255,0.18)'; c.lineWidth = 1.2 * k; c.stroke();
+  c.restore();
+  mediaOn = true;
   // 3. caption below the frame, big
   if (scene.caption && capA > 0.003) {
     tctx.save(); tctx.globalAlpha = capA;
@@ -1880,6 +1889,7 @@ function onSlideChange(from, to, now) {
 /* ---------- one frame (stepped at ANIM_FPS) ---------- */
 let monoNow = 0;
 function render(T, now) {
+  vctx.setTransform(1, 0, 0, 1, 0, 0); vctx.clearRect(0, 0, vcv.width, vcv.height); vctx.setTransform(DPR, 0, 0, DPR, 0, 0); mediaOn = false;
   sctx.setTransform(DPR, 0, 0, DPR, 0, 0); sctx.clearRect(0, 0, W, H);
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); tctx.clearRect(0, 0, W, H);
   let st;
@@ -1925,7 +1935,8 @@ uniform float uMorph, uMix, uGrow, uWobble;
 uniform vec4 uBoxX, uBoxA, uBoxB;
 uniform vec3 uFaceTop, uFaceBot;
 uniform sampler2D uIntroTex;
-uniform float uIntroOn, uMask;
+uniform float uIntroOn, uMask, uMediaOn;
+uniform sampler2D uMedia;
 uniform vec3 uCircle, uIntroBg;
 uniform vec2 uBgOff;
 uniform float uBgZoom;
@@ -2035,6 +2046,10 @@ void main(){
     float m = uMask * (1. - smoothstep(uCircle.z - .8, uCircle.z + .8, length(pc - uCircle.xy)));
     col = mix(intro, col, m);
   }
+  if (uMediaOn > 0.) {                                              // pictures and videos: on top, untouched by the film
+    vec4 md = texture2D(uMedia, gl_FragCoord.xy / uRes);
+    col = col * (1. - md.a) + md.rgb;
+  }
   gl_FragColor = vec4(clamp(col, 0., 1.), 1.);
 }`;
 
@@ -2052,6 +2067,7 @@ function mkTex(unit) { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; }
 const shapeTex = mkTex(1);
 const introTex = mkTex(4);
+const mediaTex = mkTex(5);
 function bindSdf(scene, unit) {
   if (!scene.sdf.tex) { scene.sdf.tex = mkTex(unit); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scene.sdf.img); }
   gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, scene.sdf.tex);
@@ -2069,7 +2085,7 @@ gl.uniform3fv(U('uBase'), hex(BG.base)); gl.uniform3fv(U('uDeep'), hex(BG.deep))
 gl.uniform3fv(U('uLight'), hex(BG.light)); gl.uniform3fv(U('uHot'), hex(BG.hot));
 gl.uniform1f(U('uGrunge'), GRUNGE); gl.uniform1f(U('uGrain'), GRAIN);
 gl.uniform3fv(U('uGooCol'), hex(FACE_TOP));
-gl.uniform1f(U('uWeird'), WEIRD); gl.uniform1f(U('uSpeed'), BG_SPEED); gl.uniform1i(U('uText'), 0); gl.uniform1i(U('uShape'), 1); gl.uniform1i(U('uSdfA'), 2); gl.uniform1i(U('uSdfB'), 3); gl.uniform1i(U('uIntroTex'), 4);
+gl.uniform1f(U('uWeird'), WEIRD); gl.uniform1f(U('uSpeed'), BG_SPEED); gl.uniform1i(U('uText'), 0); gl.uniform1i(U('uShape'), 1); gl.uniform1i(U('uSdfA'), 2); gl.uniform1i(U('uSdfB'), 3); gl.uniform1i(U('uIntroTex'), 4); gl.uniform1i(U('uMedia'), 5);
 gl.uniform3fv(U('uIntroBg'), hex(INTRO_BG));
 gl.uniform3fv(U('uFaceTop'), hex(FACE_TOP)); gl.uniform3fv(U('uFaceBot'), hex(FACE_BOTTOM));
 
@@ -2077,7 +2093,7 @@ gl.uniform3fv(U('uFaceTop'), hex(FACE_TOP)); gl.uniform3fv(U('uFaceBot'), hex(FA
 function resize() {
   const r = film.getBoundingClientRect();
   W = r.width; H = r.width * 9 / 16; k = W / 1600;
-  for (const c of [film, tcv, scv, bcv, mcv, icv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  for (const c of [film, tcv, scv, bcv, mcv, icv, vcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
   gl.viewport(0, 0, film.width, film.height);
   gl.uniform2f(U('uRes'), film.width, film.height);
   gl.uniform1f(U('uDpr'), DPR); gl.uniform1f(U('uK'), k);
@@ -2093,6 +2109,10 @@ function drawLayers(T) {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scv);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tcv);
+  if (mediaOn || mediaWas) { gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, mediaTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, vcv); }
+  gl.uniform1f(U('uMediaOn'), mediaOn ? 1 : 0); mediaWas = mediaOn;
+  gl.activeTexture(gl.TEXTURE0);
 }
 function loop(now) {
   const step = Math.floor(now / FRAME);                 // 24 fps stepping
