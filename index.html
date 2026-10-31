@@ -138,10 +138,10 @@
   <section data-scene="media" data-year="1986" data-mono="off" data-src="1986-pixar" data-caption="Pixar"></section>
 
   <section data-scene="year" data-year="1988" data-mono="off" data-imgs="y1988-pixar-software" data-names="RenderMan"></section>
-  <section data-scene="media" data-year="1988" data-mono="off" data-caption="RenderMan"></section>
+  <section data-scene="media" data-year="1988" data-mono="off" data-src="y1988-pixar-posters" data-caption="RenderMan"></section>
 
   <section data-scene="year" data-year="1991" data-mono="off" data-imgs="y1991-t2" data-names="Terminator 2: Judgment Day"></section>
-  <section data-scene="media" data-year="1991" data-mono="off" data-caption="Terminator 2: Judgment Day"></section>
+  <section data-scene="media" data-year="1991" data-mono="off" data-src="1991-terminator" data-caption="Terminator 2: Judgment Day"></section>
 
   <section data-scene="year" data-year="1993" data-mono="off" data-imgs="y1993-jurassic" data-names="Jurassic Park"></section>
   <section data-scene="media" data-year="1993" data-mono="off" data-src="1993-jurassic" data-caption="Jurassic Park"></section>
@@ -178,6 +178,8 @@
 
   <section data-scene="year" data-year="2024" data-mono="off" data-imgs="y2024-flow" data-names="Flow"></section>
   <section data-scene="media" data-year="2024" data-mono="off" data-src="2024-flow" data-caption="Flow"></section>
+
+  <section data-scene="title" data-top="סוף." data-bottom="" data-cube="off" data-mono="on"><aside class="notes">סוף.</aside></section>
 
 
 </div></div>
@@ -1196,9 +1198,9 @@ Please report this to https://github.com/markedjs/marked.`,e){let e=`<p>An error
 /* MEDIA_BASE set: media is streamed from there (e.g. a GitHub Pages site) and this file stays small.
    MEDIA_BASE empty: media comes from media/<name>.js next to this file (offline folder version). */
 const MEDIA_BASE = "media";
-const MEDIA_LIST = {"1968": "image/jpeg", "1971": "video/mp4", "1972": "video/mp4", "1976": "video/mp4", "1982-startrek": "video/mp4", "1982-tron": "video/mp4", "1986-pixar": "video/mp4", "1993-jurassic": "video/mp4", "1995-toystory": "video/mp4", "1997-titanic": "video/mp4", "1999-matrix": "video/mp4", "2006-pirates": "video/mp4", "2013-monsters": "video/mp4", "2014-interstellar": "video/mp4", "2018-infinitywar": "video/mp4", "2018-spiderverse": "video/mp4", "2019-mandalorian": "video/mp4", "2022-avatar": "video/mp4", "2024-flow": "video/mp4", "catmull": "image/jpeg", "poster-avatar-fire-and-ash": "image/jpeg", "poster-avengers-endgame": "image/jpeg", "poster-dune-part-two": "image/jpeg", "poster-gravity": "image/jpeg", "poster-interstellar": "image/jpeg", "poster-the-lion-king": "image/jpeg", "y1972-hand": "image/jpeg", "y1976-futureworld": "image/jpeg", "y1982-startrek": "image/jpeg", "y1982-tron": "image/jpeg", "y1986-luxo": "image/jpeg", "y1986-pixar": "image/jpeg", "y1988-pixar-software": "image/jpeg", "y1991-t2": "image/jpeg", "y1993-jurassic": "image/jpeg", "y1995-toystory": "image/jpeg", "y1997-titanic": "image/jpeg", "y1999-matrix": "image/jpeg", "y2006-pirates": "image/jpeg", "y2013-monsters": "image/jpeg", "y2014-interstellar": "image/jpeg", "y2018-infinitywar": "image/jpeg", "y2018-spiderverse": "image/jpeg", "y2019-mandalorian": "image/jpeg", "y2022-avatar": "image/jpeg", "y2024-flow": "image/jpeg"};            // name → mime type (written by the build)
-const MEDIA_EXT  = {"1968": ".jpg", "1971": ".mp4", "1972": ".mp4", "1976": ".mp4", "1982-startrek": ".mp4", "1982-tron": ".mp4", "1986-pixar": ".mp4", "1993-jurassic": ".mp4", "1995-toystory": ".mp4", "1997-titanic": ".mp4", "1999-matrix": ".mp4", "2006-pirates": ".mp4", "2013-monsters": ".mp4", "2014-interstellar": ".mp4", "2018-infinitywar": ".mp4", "2018-spiderverse": ".mp4", "2019-mandalorian": ".mp4", "2022-avatar": ".mp4", "2024-flow": ".mp4", "catmull": ".jpg", "poster-avatar-fire-and-ash": ".jpg", "poster-avengers-endgame": ".jpg", "poster-dune-part-two": ".jpg", "poster-gravity": ".jpg", "poster-interstellar": ".jpg", "poster-the-lion-king": ".jpg", "y1972-hand": ".jpg", "y1976-futureworld": ".jpg", "y1982-startrek": ".jpg", "y1982-tron": ".jpg", "y1986-luxo": ".jpg", "y1986-pixar": ".jpg", "y1988-pixar-software": ".jpg", "y1991-t2": ".jpg", "y1993-jurassic": ".jpg", "y1995-toystory": ".jpg", "y1997-titanic": ".jpg", "y1999-matrix": ".jpg", "y2006-pirates": ".jpg", "y2013-monsters": ".jpg", "y2014-interstellar": ".jpg", "y2018-infinitywar": ".jpg", "y2018-spiderverse": ".jpg", "y2019-mandalorian": ".jpg", "y2022-avatar": ".jpg", "y2024-flow": ".jpg"};             // name → file extension
-const MEDIA_ALT  = {"1972": ".webm", "1976": ".webm", "1982-startrek": ".webm", "1982-tron": ".webm", "1986-pixar": ".webm", "1993-jurassic": ".webm", "1995-toystory": ".webm", "1997-titanic": ".webm", "1999-matrix": ".webm", "2006-pirates": ".webm", "2013-monsters": ".webm", "2014-interstellar": ".webm", "2018-infinitywar": ".webm", "2018-spiderverse": ".webm", "2019-mandalorian": ".webm", "2022-avatar": ".webm", "2024-flow": ".webm"};             // name → extension of a smaller WebM copy (videos)
+const MEDIA_LIST = {"1968": "image/jpeg", "1971": "video/mp4", "1972": "video/mp4", "1976": "video/mp4", "1982-startrek": "video/mp4", "1982-tron": "video/mp4", "1986-pixar": "video/mp4", "1991-terminator": "video/mp4", "1993-jurassic": "video/mp4", "1995-toystory": "video/mp4", "1997-titanic": "video/mp4", "1999-matrix": "video/mp4", "2006-pirates": "video/mp4", "2013-monsters": "video/mp4", "2014-interstellar": "video/mp4", "2018-infinitywar": "video/mp4", "2018-spiderverse": "video/mp4", "2019-mandalorian": "video/mp4", "2022-avatar": "video/mp4", "2024-flow": "video/mp4", "catmull": "image/jpeg", "poster-avatar-fire-and-ash": "image/jpeg", "poster-avengers-endgame": "image/jpeg", "poster-dune-part-two": "image/jpeg", "poster-gravity": "image/jpeg", "poster-interstellar": "image/jpeg", "poster-the-lion-king": "image/jpeg", "y1972-hand": "image/jpeg", "y1976-futureworld": "image/jpeg", "y1982-startrek": "image/jpeg", "y1982-tron": "image/jpeg", "y1986-luxo": "image/jpeg", "y1986-pixar": "image/jpeg", "y1988-pixar-posters": "image/jpeg", "y1988-pixar-software": "image/jpeg", "y1991-t2": "image/jpeg", "y1993-jurassic": "image/jpeg", "y1995-toystory": "image/jpeg", "y1997-titanic": "image/jpeg", "y1999-matrix": "image/jpeg", "y2006-pirates": "image/jpeg", "y2013-monsters": "image/jpeg", "y2014-interstellar": "image/jpeg", "y2018-infinitywar": "image/jpeg", "y2018-spiderverse": "image/jpeg", "y2019-mandalorian": "image/jpeg", "y2022-avatar": "image/jpeg", "y2024-flow": "image/jpeg"};            // name → mime type (written by the build)
+const MEDIA_EXT  = {"1968": ".jpg", "1971": ".mp4", "1972": ".mp4", "1976": ".mp4", "1982-startrek": ".mp4", "1982-tron": ".mp4", "1986-pixar": ".mp4", "1991-terminator": ".mp4", "1993-jurassic": ".mp4", "1995-toystory": ".mp4", "1997-titanic": ".mp4", "1999-matrix": ".mp4", "2006-pirates": ".mp4", "2013-monsters": ".mp4", "2014-interstellar": ".mp4", "2018-infinitywar": ".mp4", "2018-spiderverse": ".mp4", "2019-mandalorian": ".mp4", "2022-avatar": ".mp4", "2024-flow": ".mp4", "catmull": ".jpg", "poster-avatar-fire-and-ash": ".jpg", "poster-avengers-endgame": ".jpg", "poster-dune-part-two": ".jpg", "poster-gravity": ".jpg", "poster-interstellar": ".jpg", "poster-the-lion-king": ".jpg", "y1972-hand": ".jpg", "y1976-futureworld": ".jpg", "y1982-startrek": ".jpg", "y1982-tron": ".jpg", "y1986-luxo": ".jpg", "y1986-pixar": ".jpg", "y1988-pixar-posters": ".jpg", "y1988-pixar-software": ".jpg", "y1991-t2": ".jpg", "y1993-jurassic": ".jpg", "y1995-toystory": ".jpg", "y1997-titanic": ".jpg", "y1999-matrix": ".jpg", "y2006-pirates": ".jpg", "y2013-monsters": ".jpg", "y2014-interstellar": ".jpg", "y2018-infinitywar": ".jpg", "y2018-spiderverse": ".jpg", "y2019-mandalorian": ".jpg", "y2022-avatar": ".jpg", "y2024-flow": ".jpg"};             // name → file extension
+const MEDIA_ALT  = {"1972": ".webm", "1976": ".webm", "1982-startrek": ".webm", "1982-tron": ".webm", "1986-pixar": ".webm", "1991-terminator": ".webm", "1993-jurassic": ".webm", "1995-toystory": ".webm", "1997-titanic": ".webm", "1999-matrix": ".webm", "2006-pirates": ".webm", "2013-monsters": ".webm", "2014-interstellar": ".webm", "2018-infinitywar": ".webm", "2018-spiderverse": ".webm", "2019-mandalorian": ".webm", "2022-avatar": ".webm", "2024-flow": ".webm"};             // name → extension of a smaller WebM copy (videos)
 const WEBM_OK = (() => { try { return document.createElement('video').canPlayType('video/webm; codecs="vp9, opus"') === 'probably'; } catch (e) { return false; } })();
 const MEDIA_URLS = {}, MEDIA_BLOBS = {}, MEDIA_FALLBACK = {};
 function mediaArrived(name, type, b64) {      // called by each media/<name>.js
@@ -1230,11 +1232,6 @@ const SHADOW_MIN   = 0.18;          // shadow length at rest (share of SHADOW_DE
 const FACE_TOP     = "#fffdf6";     // letter face, top
 const FACE_BOTTOM  = "#d3bf9b";     // letter face, bottom: a little darker, warm
 const FACE_FADE_AT = 0.42;          // the face stays FACE_TOP down to here, then darkens toward the bottom (0 = top, 1 = bottom)
-const SWEEP_EVERY  = 5.5;           // light sweep across the main texts: seconds between sweeps
-const SWEEP_TIME   = 1.5;           // seconds for the light to cross the slide
-const SWEEP_WIDTH  = 0.11;          // width of the light band (share of slide width)
-const SWEEP_ANGLE  = 22;            // tilt of the band (degrees from vertical)
-const SWEEP_LIGHT  = 1.0;           // brightness at the centre of the band (0..1)
 const SOFT_SHADOW  = 0.28;          // soft shadow the letters cast on the background (0 = off)
 const WAVE_HEIGHT  = 0.009;         // title idle wave: how high each letter lifts (share of slide width)
 const WAVE_CYCLE   = 3.8;           // seconds between waves
@@ -1422,6 +1419,7 @@ function buildScenes() {
     return sc;
   });
   scenes.forEach((sc, n) => { if (sc.kind === 'paper') sc.base = scenes[n - 1]; });
+  scenes.forEach((sc, n) => { const pv = scenes[n - 1]; if (sc.kind === 'title' && pv && pv.year) sc.bgYear = pv.year; });   // a closing title stays where the timeline ended
   scenes.forEach((sc, n) => { const nb = scenes[n + 1], pv = scenes[n - 1];
     if ((nb && sc.kind === 'title' && nb.kind === 'year') || (pv && pv.kind === 'title' && sc.kind === 'year')) buildSdf(sc); });
 }
@@ -1466,7 +1464,6 @@ const toneCol = f => { const v = Math.round(Math.max(0, Math.min(1, (f - 0.5) / 
 // Fix: draw the letter (shadow + face) into its own small buffer at a whole-pixel spot, then place that
 // buffer at the exact (fractional) position — images move smoothly by fractions of a pixel.
 function drawLetter(c, L, px, py, sc, vx, vy, slen, mode, color) {
-  if (c === tctx) { letterAt = [px, py]; try { return drawLetterAt(c, L, px, py, sc, vx, vy, slen, mode, color); } finally { letterAt = null; } }
   return drawLetterAt(c, L, px, py, sc, vx, vy, slen, mode, color);
 }
 function drawLetterAt(c, L, px, py, sc, vx, vy, slen, mode, color) {
@@ -1512,25 +1509,11 @@ function drawLetterAt(c, L, px, py, sc, vx, vy, slen, mode, color) {
   paintFace(c, L, ox, oy, sc);
   c.restore();
 }
-// the letter's face: white, a little darker toward the bottom; then the light sweep when it passes over
-let letterAt = null;                          // where on the slide the letter being drawn sits (only for the main text layer)
-let sweepT = 0;                               // the clock the sweep runs on (set each frame)
-function sweepCentre() {                      // x of the light band's centre on the slide, or null between sweeps
-  const p = (sweepT / 1000) % SWEEP_EVERY; if (p > SWEEP_TIME) return null;
-  return lerp(-0.25 * W, 1.25 * W, easeInOutSine(p / SWEEP_TIME));
-}
+// the letter's face: white, a little darker toward the bottom
 function paintFace(c, L, ox, oy, sc) {
   const g = c.createLinearGradient(0, oy - L.cap, 0, oy);
   g.addColorStop(0, FACE_TOP); g.addColorStop(FACE_FADE_AT, FACE_TOP); g.addColorStop(1, FACE_BOTTOM);
   c.fillStyle = g; c.fillText(L.ch, ox, oy);
-  const bx = letterAt && sweepCentre(); if (bx == null || bx === false) return;
-  // band across the slide, tilted; expressed in this letter's own coordinates so it lines up across all letters
-  const a = SWEEP_ANGLE * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a), hw = SWEEP_WIDTH * W / 2;
-  const cxL = (bx - letterAt[0]) / sc, cyL = (H / 2 - letterAt[1]) / sc, h = hw / sc;
-  if (Math.abs(cxL) > (L.w + L.cap) * 1.5 + h * 2) return;        // band far from this letter
-  const lg = c.createLinearGradient(cxL - ux * h, cyL - uy * h, cxL + ux * h, cyL + uy * h);
-  lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, `rgba(255,255,252,${SWEEP_LIGHT})`); lg.addColorStop(1, 'rgba(255,255,255,0)');
-  c.fillStyle = lg; c.fillText(L.ch, ox, oy);
 }
 
 // soft shadow cast on the background by a set of drawn letters [{L,px,py,sc,slen}]
@@ -2324,6 +2307,16 @@ function trYearColor(A, B, s) {
   return { mono: lerp(A.mono, B.mono, easeInOut(clamp01(s / 1.2))), goo: 0, thresh: 0.5, morph: 0 };
 }
 
+// video → closing title: the frame slides away as always, the year lifts out, the world turns black & white, the words type in
+function trMediaTitle(A, B, s, sPrev, T) {
+  const D = mediaTravel(), u = MEDIA_OUT(s / MEDIA_OUT_DUR), vy = D * (u - MEDIA_OUT(sPrev / MEDIA_OUT_DUR));
+  if (s < MEDIA_OUT_DUR + 0.05) drawMedia(A, 1, u * D, 1, 1 - easeInOut(clamp01(s / 0.7)), T, vy);
+  const up = SHADOW_BACK_EASE(clamp01(s / 1.1));
+  if (up < 1) drawHeader(A, HEADER_SCALE, HEADER_Y * H - up * 0.3 * H);
+  typeLetters(B, s, T);
+  return { mono: lerp(A.mono, B.mono, easeInOut(clamp01((s - 0.5) / 1.2))), goo: 0, thresh: 0.5, morph: 0 };
+}
+
 /* ---------- idle: a scene on its own ---------- */
 function renderIdle(scene, T) {
   if (introIdle[scene.kind]) { introClear(); introIdle[scene.kind](T); return { mono: 0, goo: 0, thresh: 0.5, morph: 0, introOn: 1, mask: 0 }; }
@@ -2431,6 +2424,7 @@ const TRANSITIONS = {
   'intro-square>intro-cube':  { fn: trSquareCube,  dur: () => 1.3,  formedAt: 1.3 },
   'intro-cube>intro-circle':  { fn: trCubeCircle,  dur: () => 1.3,  formedAt: 1.3 },
   'intro-circle>title':       { fn: trCircleTitle, dur: (A, B) => (typeTimes(B), B.typeEnd + 0.15 + TYPE.settle + 0.05), formedAt: 0 },
+  'media>title':              { fn: trMediaTitle, dur: (A, B) => (typeTimes(B), B.typeEnd + 0.15 + TYPE.settle + 0.05), formedAt: 0 },
   'title>year':               { fn: renderMorph,   dur: () => MORPH_DURATION, formedAt: MORPH.formed },
   'year>media':               { fn: trYearMedia,   dur: () => 2.45, formedAt: 0 },
   'media>year':               { pick: (A, B) => A.year === B.year
@@ -2502,14 +2496,14 @@ function releaseFar(to) {                      // finished long shadows are kept
 // where the background sits for a scene: each timeline year has its own spot, the flight between years travels
 // from one spot to the next (same numbers as trFly's camera), so the background never jumps
 function sceneBg(sc) {
-  const y = sc && +sc.year;
+  const y = sc && +(sc.year || sc.bgYear);
   return y && y >= TIMELINE[0] && y <= TIMELINE[TIMELINE.length - 1] ? tlX(y) * 0.18 : 0;
 }
 
 /* ---------- one frame (stepped at ANIM_FPS) ---------- */
 let monoNow = 0;
 function render(T, now) {
-  sweepT = T; shapesOn = false;
+  shapesOn = false;
   vctx.setTransform(1, 0, 0, 1, 0, 0); vctx.clearRect(0, 0, vcv.width, vcv.height); vctx.setTransform(DPR, 0, 0, DPR, 0, 0); mediaOn = false;
   sctx.setTransform(DPR, 0, 0, DPR, 0, 0); sctx.clearRect(0, 0, W, H);
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); tctx.clearRect(0, 0, W, H);
