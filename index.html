@@ -16,58 +16,78 @@
   .reveal { overflow: hidden !important; }
   .reveal .slides, .reveal .backgrounds { display: none !important; }   /* sections are data only; the engine draws */
 
-  /* ---------- overview (slide sorter) ---------- */
-  #overview { position: fixed; inset: 0; z-index: 10; overflow-y: auto; background: #0d0b09; color: #f4efe4;
-              font-family: ArchivoX, system-ui, sans-serif; -webkit-overflow-scrolling: touch; }
-  #overview.hidden { display: none; }
-  .ov-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px;
-             padding: 22px clamp(16px, 4vw, 48px); background: linear-gradient(#0d0b09 70%, rgba(13,11,9,0)); }
-  .ov-title { font-family: CaravanWide, sans-serif; font-size: clamp(24px, 3.4vw, 44px); line-height: 1; direction: rtl; }
-  .ov-sub { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .55; margin-top: 8px; }
-  .ov-present { display: inline-flex; align-items: center; gap: 10px; border: 0; cursor: pointer; border-radius: 999px;
-                padding: 14px 26px; font: 800 15px ArchivoX, system-ui, sans-serif; letter-spacing: .04em;
-                background: #efb20c; color: #120d06; box-shadow: 0 8px 30px rgba(239,178,12,.25); transition: transform .15s; }
-  .ov-present:hover { transform: translateY(-2px); }
-  .ov-present svg { width: 14px; height: 14px; }
-  .ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: clamp(14px, 2vw, 24px);
-             padding: 8px clamp(16px, 4vw, 48px) 60px; direction: rtl; }
-  .ov-card { cursor: pointer; border-radius: 12px; overflow: hidden; background: #1a1612; text-align: left; border: 0; padding: 0; color: inherit;
-             box-shadow: 0 6px 24px rgba(0,0,0,.45); outline: 1px solid rgba(244,239,228,.08); transition: transform .15s, outline-color .15s; }
-  .ov-card:hover { transform: translateY(-3px); outline-color: rgba(239,178,12,.7); }
-  .ov-thumb { aspect-ratio: 16/9; background: #000 center/cover no-repeat; position: relative; }
-  .ov-num { position: absolute; top: 8px; left: 8px; min-width: 26px; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 800;
-            text-align: center; background: rgba(0,0,0,.6); color: #f4efe4; }
-  .ov-play { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; transition: opacity .15s; background: rgba(0,0,0,.25); }
-  .ov-card:hover .ov-play { opacity: 1; }
-  .ov-play span { width: 46px; height: 46px; border-radius: 50%; background: #efb20c; display: grid; place-items: center; }
-  .ov-meta { display: flex; justify-content: space-between; gap: 10px; padding: 11px 13px 13px; font-size: 13px; }
-  .ov-label { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ov-label.he { font-family: CaravanWide, sans-serif; font-weight: normal; font-size: 15px; direction: rtl; }
-  .ov-kind { opacity: .5; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
-  #ov-btn { position: fixed; top: 14px; right: 14px; z-index: 9; width: 42px; height: 42px; border-radius: 10px; border: 0; cursor: pointer;
-            background: rgba(0,0,0,.45); color: #f4efe4; display: grid; place-items: center; opacity: 0; transition: opacity .3s; }
-  #ov-btn.show { opacity: .85; }
-  @media (max-width: 640px) {
-    .ov-head { padding: 16px 14px; }
-    .ov-title { font-size: 22px; }
-    .ov-sub { font-size: 10px; }
-    .ov-present { padding: 11px 18px; font-size: 13px; }
-    .ov-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 4px 14px 40px; }
-    .ov-meta { padding: 8px 9px 9px; font-size: 11px; }
-    .ov-label.he { font-size: 12px; }
-    .ov-kind { display: none; }
+
+  /* ===================== editor (PowerPoint-style normal view) ===================== */
+  :root { --chrome: #262626; --panel: #212121; --work: #181818; --line: #353535; --text: #e9e9e9; --dim: #9a9a9a; --accent: #f0b419; }
+  #app { position: fixed; inset: 0; z-index: 5; display: grid; grid-template-columns: 236px 1fr; grid-template-rows: 52px 1fr 26px;
+         font: 13px/1.35 "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; color: var(--text);
+         pointer-events: none; user-select: none; -webkit-user-select: none; }
+  #app > * { pointer-events: auto; }
+  body.presenting #app { display: none; }
+  #topbar { grid-column: 1 / 3; display: flex; align-items: center; gap: 14px; padding: 0 14px; background: var(--chrome); border-bottom: 1px solid var(--line); }
+  .tb-logo { width: 26px; height: 26px; border-radius: 6px; background: var(--accent); display: grid; place-items: center; flex: none; }
+  .tb-file { display: flex; flex-direction: column; min-width: 0; }
+  .tb-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tb-meta { color: var(--dim); font-size: 11px; }
+  .tb-spacer { flex: 1; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--line);
+         background: #303030; color: var(--text); font: 600 13px inherit; font-family: inherit; cursor: pointer; white-space: nowrap; }
+  .btn:hover { background: #3a3a3a; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #1a1405; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn svg { width: 12px; height: 12px; flex: none; }
+  #panel { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 12px 10px 12px 6px; }
+  .t-item { display: grid; grid-template-columns: 26px 1fr; gap: 4px; align-items: start; padding: 5px 4px; border-radius: 6px; cursor: pointer; }
+  .t-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 2px; color: var(--dim); font-size: 12px; }
+  .t-fx { width: 11px; height: 11px; opacity: .8; }
+  .t-frame { position: relative; aspect-ratio: 16 / 9; border-radius: 3px; overflow: hidden; background: #000;
+             outline: 1px solid #3c3c3c; outline-offset: 0; }
+  .t-frame canvas { width: 100%; height: 100%; display: block; }
+  .t-item:hover .t-frame { outline: 2px solid #5a5a5a; }
+  .t-item.sel .t-frame { outline: 2.5px solid var(--accent); outline-offset: 1px; }
+  .t-item.sel .t-side { color: var(--text); }
+  .t-vid { position: absolute; right: 5px; bottom: 5px; width: 18px; height: 18px; border-radius: 4px; background: rgba(0,0,0,.65); display: grid; place-items: center; }
+  #work { display: grid; grid-template-rows: 1fr auto; background: var(--work); min-width: 0; min-height: 0; }
+  #stage { position: relative; min-height: 0; }
+  #notes { height: 118px; border-top: 1px solid var(--line); background: var(--panel); padding: 10px 18px; overflow-y: auto; }
+  .n-label { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+  #notes-text { font-size: 14px; direction: rtl; text-align: right; white-space: pre-wrap; user-select: text; -webkit-user-select: text; }
+  #notes-text:empty::before { content: "No notes for this slide"; color: #666; }
+  #status { grid-column: 1 / 3; display: flex; align-items: center; gap: 18px; padding: 0 14px; background: var(--chrome); border-top: 1px solid var(--line);
+            color: var(--dim); font-size: 12px; }
+  #status .st-keys { margin-left: auto; }
+  kbd { font: 11px inherit; font-family: inherit; padding: 1px 5px; border-radius: 3px; border: 1px solid #4a4a4a; color: #cfcfcf; }
+  body:not(.presenting) #film { z-index: 6; box-shadow: 0 10px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06); }
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 52px auto 1fr; }
+    #topbar, #status { grid-column: 1; }
+    #status, #notes, .tb-meta, #btn-current .lbl-long { display: none; }
+    #work { grid-row: 2; height: calc(100vw * 9 / 16 + 24px); grid-template-rows: 1fr; }
+    #panel { grid-row: 3; border-right: 0; border-top: 1px solid var(--line); padding: 12px; display: block; }
+    #thumbs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
+    .t-item { grid-template-columns: 18px minmax(0, 1fr); min-width: 0; padding: 4px 2px; }
+    .t-side { font-size: 11px; }
+    #topbar { gap: 10px; padding: 0 10px; }
+    .tb-name { font-size: 13px; }
+    #btn-current { display: none; }
+    .btn { padding: 0 12px; }
   }
+  .t-item, .t-frame { min-width: 0; }
 </style>
 </head>
 <body>
-<div id="overview" class="hidden">
-  <div class="ov-head">
-    <div><div class="ov-title" id="ov-title"></div><div class="ov-sub" id="ov-sub"></div></div>
-    <button class="ov-present" id="ov-present"><svg viewBox="0 0 14 14"><path d="M2 1l11 6-11 6z" fill="currentColor"/></svg>Present</button>
-  </div>
-  <div class="ov-grid" id="ov-grid"></div>
+<div id="app">
+  <header id="topbar">
+    <div class="tb-logo"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 3.5l5-2.5 5 2.5v7L7 13l-5-2.5z" fill="none" stroke="#1a1405" stroke-width="1.6"/><path d="M2 3.5L7 6l5-2.5M7 6v7" fill="none" stroke="#1a1405" stroke-width="1.6"/></svg></div>
+    <div class="tb-file"><div class="tb-name" id="tb-name"></div><div class="tb-meta" id="tb-meta"></div></div>
+    <div class="tb-spacer"></div>
+    <button class="btn" id="btn-current" title="Present from current slide (Shift+F5)"><svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg><span class="lbl-long">From Current Slide</span><span class="lbl-short"></span></button>
+    <button class="btn primary" id="btn-start" title="Present from beginning (F5)"><svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg>Present</button>
+  </header>
+  <aside id="panel"><div id="thumbs"></div></aside>
+  <main id="work"><div id="stage"></div><div id="notes"><div class="n-label">Notes</div><div id="notes-text"></div></div></main>
+  <footer id="status"><span id="st-slide"></span><span id="st-kind"></span><span class="st-keys"><kbd>F5</kbd> Present &nbsp; <kbd>⇧F5</kbd> From current &nbsp; <kbd>↑</kbd><kbd>↓</kbd> Select &nbsp; <kbd>Esc</kbd> Back to editor</span></footer>
 </div>
-<button id="ov-btn" title="All slides (Esc)"><svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><rect x="1" y="1" width="7" height="7" rx="1.5"/><rect x="10" y="1" width="7" height="7" rx="1.5"/><rect x="1" y="10" width="7" height="7" rx="1.5"/><rect x="10" y="10" width="7" height="7" rx="1.5"/></svg></button>
 <canvas id="film"></canvas>
 <canvas id="text"></canvas>
 
@@ -1859,6 +1879,7 @@ function currentVideo() { const sc = !trans && scenes[cur]; return sc && sc.medi
 function toggleVideo() { const v = currentVideo(); if (!v) return false; if (v.paused) v.play().catch(() => {}); else v.pause(); return true; }
 function onSlideChange(from, to, now) {
   syncVideos();
+  if (editing) { trans = null; cur = to; scenes[to].t0 = now - 60000; lastStep = -1; selectThumb(to); return; }
   if (trans) { cur = trans.to; trans = null; }          // a new jump finishes any running transition
   const lo = Math.min(from, to), A = scenes[lo], B = scenes[lo + 1];
   let tr = Math.abs(to - from) === 1 && A && B ? TRANSITIONS[A.kind + '>' + B.kind] : null;
@@ -2083,17 +2104,16 @@ function resize() {
 /* ---------- loop ---------- */
 let lastStep = -1, lastGrain = 0, frame = 0, seed = 1, scrSeed = 1, flicker = 1, weave = [0, 0];
 const t0 = performance.now();
+function drawLayers(T) {
+  render(T, T);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shapeTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scv);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tcv);
+}
 function loop(now) {
   const step = Math.floor(now / FRAME);                 // 24 fps stepping
-  if (step !== lastStep) {
-    lastStep = step;
-    const T = step * FRAME;
-    render(T, T);
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shapeTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scv);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tcv);
-  }
+  if (step !== lastStep) { lastStep = step; drawLayers(step * FRAME); }
   if (now - lastGrain > 1000 / GRAIN_FPS) {
     lastGrain = now; frame++;
     seed = Math.random() * 100;
@@ -2107,52 +2127,104 @@ function loop(now) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   requestAnimationFrame(loop);
 }
-window.addEventListener('resize', resize);
 
-/* ---------- overview: every slide with its thumbnail; Present starts the real thing ---------- */
+/* ===================== editor: slide panel, live stage, notes, Present ===================== */
+let editing = true, thumbs = [];
+const app = document.getElementById('app'), stage = document.getElementById('stage');
 const KIND_NAME = { 'intro-square': 'Intro', 'intro-cube': 'Intro', 'intro-circle': 'Intro', title: 'Title', year: 'Year', media: 'Media' };
-function slideLabel(sec) {
-  const d = sec.dataset, k = d.scene || 'title';
-  if (k === 'title') return [((d.top || '') + ' ' + (d.bottom || '')).trim(), true];
-  if (k === 'year') return [d.year || '', false];
-  if (k === 'media') return [d.caption || d.src || '', false];
-  return [{ 'intro-square': 'Square', 'intro-cube': 'Cube', 'intro-circle': 'Circle' }[k] || k, false];
+const sections = () => [...document.querySelectorAll('.reveal .slides > section')];
+
+function placeFilm() {                       // editing: the live slide sits in the stage; presenting: full screen
+  if (editing) {
+    const r = stage.getBoundingClientRect(), pad = Math.min(36, r.width * 0.05);
+    const w = Math.max(80, Math.min(r.width - pad * 2, (r.height - pad * 2) * 16 / 9));
+    Object.assign(film.style, { left: (r.left + r.width / 2) + 'px', top: (r.top + r.height / 2) + 'px', width: w + 'px' });
+  } else Object.assign(film.style, { left: '', top: '', width: '' });
+  resize();
 }
-const ov = document.getElementById('overview'), ovBtn = document.getElementById('ov-btn');
-const IS_THUMB = /[?&]thumb/.test(location.search);
-function buildOverview() {
-  const secs = [...document.querySelectorAll('.reveal .slides > section')];
-  document.getElementById('ov-title').textContent = document.title;
-  document.getElementById('ov-sub').textContent = secs.length + ' slides';
-  const grid = document.getElementById('ov-grid'); grid.innerHTML = '';
+function hasTransitionInto(i) {
+  const A = scenes[i - 1], B = scenes[i]; if (!A || !B) return false;
+  let tr = TRANSITIONS[A.kind + '>' + B.kind]; return !!tr;
+}
+function buildEditor() {
+  document.getElementById('tb-name').textContent = document.title;
+  const secs = sections(), box = document.getElementById('thumbs');
+  document.getElementById('tb-meta').textContent = secs.length + ' slides';
+  box.innerHTML = ''; thumbs = [];
   secs.forEach((sec, i) => {
-    const [label, he] = slideLabel(sec), k = sec.dataset.scene || 'title';
-    const b = document.createElement('button'); b.className = 'ov-card';
-    b.innerHTML = `<div class="ov-thumb" style="background-image:url('thumbs/${i}.jpg')"><div class="ov-num">${i + 1}</div>
-      <div class="ov-play"><span><svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 1l10 6-10 6z" fill="#120d06"/></svg></span></div></div>
-      <div class="ov-meta"><div class="ov-label ${he ? 'he' : ''}"></div><div class="ov-kind">${KIND_NAME[k] || k}</div></div>`;
-    b.querySelector('.ov-label').textContent = label;
-    b.onclick = () => present(i);
-    grid.appendChild(b);
+    const it = document.createElement('div'); it.className = 't-item';
+    const isVid = scenes[i] && scenes[i].media && scenes[i].media.isVideo;
+    it.innerHTML = `<div class="t-side"><span>${i + 1}</span>${hasTransitionInto(i) ? '<svg class="t-fx" viewBox="0 0 12 12"><path d="M6 .5l1.6 3.4 3.7.4-2.8 2.5.8 3.7L6 8.6 2.7 10.5l.8-3.7L.7 4.3l3.7-.4z" fill="currentColor"/></svg>' : ''}</div>
+      <div class="t-frame"><canvas></canvas>${isVid ? '<div class="t-vid"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 0l7 4-7 4z" fill="#fff"/></svg></div>' : ''}</div>`;
+    it.onclick = () => goEdit(i);
+    it.ondblclick = () => present(i);
+    box.appendChild(it);
+    const c = it.querySelector('canvas'); c.width = 320; c.height = 180;
+    thumbs.push({ it, c, done: false });
   });
+  selectThumb(cur);
+  renderThumbs();
+}
+// draw every slide once, in the browser, from the real engine → the panel always matches the slides
+function renderThumbs() {
+  const keepCur = cur, keepTrans = trans, keepT0 = scenes.map(s => s.t0);
+  let pending = false;
+  const T = Math.floor(performance.now() / FRAME) * FRAME;
+  scenes.forEach((sc, i) => {
+    const th = thumbs[i]; if (!th || th.done) return;
+    if (sc.media && !mediaReady(sc.media)) { pending = true; return; }
+    trans = null; cur = i; sc.t0 = T - 60000;
+    drawLayers(T);
+    gl.uniform1f(U('uTime'), 12); gl.uniform1f(U('uSeed'), 3); gl.uniform1f(U('uFlicker'), 1); gl.uniform2f(U('uWeave'), 0, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    th.c.getContext('2d').drawImage(film, 0, 0, th.c.width, th.c.height);
+    th.done = true;
+  });
+  scenes.forEach((s, i) => { s.t0 = keepT0[i]; });
+  cur = keepCur; trans = keepTrans; lastStep = -1;
+  if (pending) setTimeout(renderThumbs, 700);
+}
+function selectThumb(i) {
+  thumbs.forEach((t, n) => t.it.classList.toggle('sel', n === i));
+  const t = thumbs[i]; if (t) t.it.scrollIntoView({ block: 'nearest' });
+  const sec = sections()[i]; if (!sec) return;
+  const notes = sec.querySelector('aside.notes');
+  document.getElementById('notes-text').textContent = notes ? notes.textContent.trim() : '';
+  document.getElementById('st-slide').textContent = `Slide ${i + 1} of ${sections().length}`;
+  document.getElementById('st-kind').textContent = KIND_NAME[sec.dataset.scene || 'title'] || '';
+}
+function goEdit(i) {
+  i = Math.max(0, Math.min(sections().length - 1, i));
+  if (Reveal.getIndices().h !== i) Reveal.slide(i, 0, -1); else { trans = null; cur = i; scenes[i].t0 = performance.now() - 60000; lastStep = -1; selectThumb(i); }
 }
 function present(i) {
-  ov.classList.add('hidden');
+  editing = false; document.body.classList.add('presenting');
   const el = document.documentElement;
-  try { const r = (el.requestFullscreen || el.webkitRequestFullscreen); if (r && !document.fullscreenElement) { const p = r.call(el); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
-  if (Reveal.getIndices().h !== i) Reveal.slide(i, 0, -1); else { cur = i; trans = null; scenes[i].t0 = performance.now(); lastStep = -1; }
-  Reveal.configure({ keyboard: true });
+  try { const r = el.requestFullscreen || el.webkitRequestFullscreen; if (r && !document.fullscreenElement) { const p = r.call(el); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+  placeFilm();
+  Reveal.configure({ keyboard: true, touch: true });
+  if (Reveal.getIndices().h !== i) Reveal.slide(i, 0, -1); else { trans = null; cur = i; scenes[i].t0 = performance.now(); lastStep = -1; }
 }
-function showOverview() {
-  syncVideos(); ov.classList.remove('hidden'); ovBtn.classList.remove('show');
-  Reveal.configure({ keyboard: false });
+function backToEditor() {
+  if (editing) return;
+  editing = true; syncVideos(); document.body.classList.remove('presenting');
+  Reveal.configure({ keyboard: false, touch: false });
+  if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  trans = null; scenes[cur].t0 = performance.now() - 60000;
+  placeFilm(); selectThumb(cur);
 }
-document.getElementById('ov-present').onclick = () => present(0);
-ovBtn.onclick = e => { e.stopPropagation(); showOverview(); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && ov.classList.contains('hidden')) { e.preventDefault(); e.stopPropagation(); showOverview(); } }, true);
-document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && ov.classList.contains('hidden')) showOverview(); });
-let ovHide = 0;
-['pointermove', 'pointerdown'].forEach(ev => document.addEventListener(ev, () => { if (!ov.classList.contains('hidden')) return; ovBtn.classList.add('show'); clearTimeout(ovHide); ovHide = setTimeout(() => ovBtn.classList.remove('show'), 1800); }));
+document.getElementById('btn-start').onclick = () => present(0);
+document.getElementById('btn-current').onclick = () => present(cur);
+document.addEventListener('keydown', e => {
+  if (e.key === 'F5') { e.preventDefault(); present(e.shiftKey ? cur : 0); return; }
+  if (!editing) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); backToEditor(); } return; }
+  if (['ArrowDown', 'ArrowRight', 'PageDown'].includes(e.key)) { e.preventDefault(); goEdit(cur + 1); }
+  else if (['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); goEdit(cur - 1); }
+  else if (e.key === 'Home') goEdit(0); else if (e.key === 'End') goEdit(sections().length - 1);
+  else if (e.key === 'Enter') present(cur);
+}, true);
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) backToEditor(); });
+window.addEventListener('resize', () => { placeFilm(); thumbs.forEach(t => t.done = false); clearTimeout(window.__thr); window.__thr = setTimeout(renderThumbs, 300); });
 
 /* ---------- start: fonts → engine → reveal.js ---------- */
 const f90 = new FontFace('CaravanNarrow', `url(${FONT90})`);
@@ -2164,19 +2236,18 @@ Promise.all([f90.load(), f210.load(), fArch.load()]).then(fs => {
     const m = loadMedia(sec.dataset.src || '');
     if (m.isVideo && !sec.querySelector('.play-video')) { const f = document.createElement('span'); f.className = 'fragment play-video'; sec.appendChild(f); }
   });
-  resize();
+  placeFilm();
   Reveal.initialize({
     hash: true, controls: false, progress: false, center: false,
     transition: 'none', backgroundTransition: 'none',
     width: 1920, height: 1080, margin: 0,
     scrollActivationWidth: null,          // never switch to reveal's scroll view on narrow screens
-    plugins: [RevealNotes]
+    plugins: [RevealNotes], keyboard: false, touch: false
   }).then(() => {
     cur = Reveal.getIndices().h || 0;
-    if (scenes[cur]) scenes[cur].t0 = performance.now();
+    if (scenes[cur]) scenes[cur].t0 = performance.now() - 60000;
     requestAnimationFrame(loop);
-    buildOverview();
-    if (!IS_THUMB) showOverview();
+    buildEditor();
   });
   Reveal.addKeyBinding({ keyCode: 86, key: 'V', description: 'Play / pause video' }, () => toggleVideo());
   document.addEventListener('click', e => {
