@@ -1630,7 +1630,7 @@ function camT(s, n) {
   if (s < push) return -0.07 * easeInOut(s / push);
   const u = clamp01((s - push) / cruise);
   const accel = u < 0.18 ? Math.pow(u / 0.18, 2.6) * 0.18 : u;                 // the yank: slow → fast
-  const g = u < 0.18 ? accel : 0.18 + (1 - Math.pow(1 - (u - 0.18) / 0.82, 3.4)) * 0.82;   // long cruise, hard brake
+  const g = u < 0.18 ? accel : 0.18 + (1 - Math.pow(Math.max(0, 1 - (u - 0.18) / 0.82), 3.4)) * 0.82;   // long cruise, hard brake
   const settle = 0.035 * Math.sin(clamp01((u - 0.9) / 0.1) * Math.PI);           // overshoots a hair, comes back
   return lerp(-0.07, n - 1, g) + settle;
 }
@@ -1721,7 +1721,7 @@ function trDepth(A, B, s, sPrev, T) {
   // widescreen bars
   const bars = easeInOutCubic(clamp01(s / 0.7)) * (1 - easeInOutCubic(clamp01((s - (land - 0.7)) / 0.6)));
   if (bars > 0.002) { const h = LETTERBOX * H * bars; vctx.fillStyle = '#000'; vctx.fillRect(0, 0, W, h); vctx.fillRect(0, H - h, W, h); mediaOn = true; }
-  return Object.assign(out, { bgZoom: 1 + 0.7 * Math.sin(Math.PI * clamp01(t / (n - 1))), bgOff: -0.3 * clamp01(t / (n - 1)) });
+  return Object.assign(out, { bgZoom: 1 + 0.7 * Math.sin(Math.PI * clamp01(t / (n - 1))), bgOff: -0.3 * Math.sin(Math.PI * clamp01(t / (n - 1))) });
 }
 const mediaCache = {};
 const loadMediaCached = n => mediaCache[n] || (mediaCache[n] = loadMedia(n));
