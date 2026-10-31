@@ -1250,9 +1250,8 @@ const PAPER_FPS   = 8;
 const PAPER_WIDTH = 0.4;            // share of slide width
 
 // 2026 → 1968: the camera flies back through the years, set in depth
-const DEPTH_YEARS = [2026, 2020, 2016, 2012, 2006, 2000, 1995, 1989, 1982, 1976, 1972, 1968];
-const DEPTH = { push: 0.7, hop: 0.5, land: 1.4 };       // seconds: slow push-in, time per year, brake into the last year
-const DEPTH_ROLL = 2.5;            // camera roll during the flight (degrees)
+const DEPTH_YEARS = [2026, 2020, 2012, 2000, 1990, 1980, 1968];
+const DEPTH = { dur: 10, apex: 0.27, dist: 3, eye: 1.2, rise: 3.4, back: 10, gap: 10, side: 3.1, pane: [3.9, 2.5], paneSmall: [3.0, 2.0] };  // seconds / world units
 const LETTERBOX  = 0.11;           // cinematic bars during the flight (share of slide height)
 // posters behind a year (data-posters="Title; Title; ..."): media named poster-<title-in-lowercase-with-dashes>
 const POSTER_H = 0.5;               // poster height (share of slide height)
@@ -1606,39 +1605,21 @@ function drawPosters(scene, el, out = 0) {
   });
 }
 
-/* 2026 → 1968, shot like a film: a slow push-in, then the camera yanks backwards through the years.
-   Every year is a solid block with real extrusion; the one settling in front of the lens is in focus,
-   years rushing past the lens are thrown out of focus and zoom-blurred; dust in the air gives parallax and speed. */
+/* 2026 → 1968, one continuous shot through one 3D camera:
+   the camera pulls back and up from 2026 and reveals a road of years to the horizon (each year on a glass pane
+   standing on the floor), hangs for a beat, then glides forward along the road, past the years on both sides,
+   and settles at eye level facing 1968. Everything is projected through the same camera; one smooth speed curve. */
 function depthList(A, B) {
   const hi = Math.max(+A.year, +B.year), lo = Math.min(+A.year, +B.year);
   return [...new Set([hi, ...DEPTH_YEARS.filter(y => y < hi && y > lo), lo])].sort((a, b) => b - a);
 }
-const depthDur = (A, B) => DEPTH.push + (depthList(A, B).length - 1) * DEPTH.hop + DEPTH.land;
-function railPoint(i) {
-  if (i <= 0) return [0, 0];
-  const a = i * 1.15 + 0.6;
-  return [Math.cos(a) * 0.78, Math.sin(a) * 0.5];
-}
-function railAt(t) {
-  const i = Math.floor(t), f = t - i, p = j => railPoint(j);
-  const P0 = p(i - 1), P1 = p(i), P2 = p(i + 1), P3 = p(i + 2);
-  return [0, 1].map(c => 0.5 * ((2 * P1[c]) + (-P0[c] + P2[c]) * f + (2 * P0[c] - 5 * P1[c] + 4 * P2[c] - P3[c]) * f * f + (-P0[c] + 3 * P1[c] - 3 * P2[c] + P3[c]) * f * f * f));
-}
-// camera position in "years travelled" at time s: push-in, yank, cruise, hard brake with a small settle
-function camT(s, n) {
-  const push = DEPTH.push, cruise = (n - 1) * DEPTH.hop + DEPTH.land * 0.8;
-  if (s < push) return -0.07 * easeInOut(s / push);
-  const u = clamp01((s - push) / cruise);
-  const accel = u < 0.18 ? Math.pow(u / 0.18, 2.6) * 0.18 : u;                 // the yank: slow → fast
-  const g = u < 0.18 ? accel : 0.18 + (1 - Math.pow(Math.max(0, 1 - (u - 0.18) / 0.82), 3.4)) * 0.82;   // long cruise, hard brake
-  const settle = 0.035 * Math.sin(clamp01((u - 0.9) / 0.1) * Math.PI);           // overshoots a hair, comes back
-  return lerp(-0.07, n - 1, g) + settle;
-}
+const depthDur = () => DEPTH.dur;
+const smoother = x => { x = clamp01(x); return x * x * x * (x * (x * 6 - 15) + 10); };   // zero speed and acceleration at both ends
 let spriteCache = {};
 function yearSprite(y) {                    // the year as a solid block: face + extrusion, rendered once
   const key = y + ':' + W + ':' + DPR;
   if (spriteCache[key]) return spriteCache[key];
-  const letters = tlLetters(y), b = boxOf(letters), E = 0.05 * W, pad = 0.03 * W;
+  const letters = tlLetters(y), b = boxOf(letters), E = 0.04 * W, pad = 0.03 * W;
   const ox = b.x0 - pad, oy = b.y0 - pad, w = b.x1 - b.x0 + pad * 2 + E, h = b.y1 - b.y0 + pad * 2 + E;
   const mkc = () => { const c = document.createElement('canvas'); c.width = Math.ceil(w * DPR); c.height = Math.ceil(h * DPR);
                       const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, -ox * DPR, -oy * DPR); return [c, g]; };
@@ -1651,77 +1632,107 @@ function yearSprite(y) {                    // the year as a solid block: face +
   eg.globalCompositeOperation = 'source-in'; eg.setTransform(1, 0, 0, 1, 0, 0); eg.fillStyle = gr; eg.fillRect(0, 0, ec.width, ec.height);
   return spriteCache[key] = { face: fc, ext: ec, ox, oy, w, h };
 }
-function drawSprite(sp, img, sx, sy, sc, alpha, blur, zoomBlur) {
-  if (alpha < 0.01) return;
-  const x = sx + (sp.ox - W / 2) * sc, y = sy + (sp.oy - H / 2) * sc, w = sp.w * sc, h = sp.h * sc;
+// draw a sprite at screen centre (X,Y) and scale sc; (vx,vy) = how far it moved on screen in the last 1/30 s (real motion blur)
+function drawSprite(sp, img, X, Y, sc, alpha, vx, vy, flipY) {
+  if (alpha < 0.01 || sc <= 0) return;
+  const x = X + (sp.ox - W / 2) * sc, y = Y + (sp.oy - H / 2) * sc, w = sp.w * sc, h = sp.h * sc;
+  const len = Math.hypot(vx, vy), taps = len > 2.5 ? Math.min(7, 2 + Math.ceil(len / 10)) : 1;
   tctx.save();
-  if (blur > 0.4 && 'filter' in tctx) tctx.filter = `blur(${blur * DPR}px)`;
-  const taps = zoomBlur > 0.004 ? 5 : 1;
-  for (let i = 0; i < taps; i++) {                                                   // zoom blur: a few copies along the motion
-    const f = 1 + zoomBlur * (i / Math.max(1, taps - 1) - 0.5);
-    tctx.globalAlpha = alpha / (taps > 1 ? 2.2 : 1);
-    tctx.drawImage(img, sx + (x - sx) * f, sy + (y - sy) * f, w * f, h * f);
+  if (flipY) { tctx.translate(0, Y * 2); tctx.scale(1, -1); }
+  for (let i = 0; i < taps; i++) {
+    const f = taps > 1 ? i / (taps - 1) - 0.5 : 0;
+    tctx.globalAlpha = taps > 1 ? alpha * 1.6 / taps : alpha;
+    tctx.drawImage(img, x - vx * f, y - vy * f * (flipY ? -1 : 1), w, h);
   }
   tctx.restore();
 }
-const DUST = Array.from({ length: 170 }, (_, i) => [(jit(i * 1.3) - 0.5) * 3.4, (jit(i * 2.7) - 0.5) * 2.4, jit(i * 4.1) * 14 - 2, 0.6 + jit(i * 5.3) * 1.4]);
+function roadCamera(s, n) {                 // camera (x, y, z) at time s — two smooth moves joined at rest
+  const D = DEPTH, zEnd = (n - 1) * D.gap - D.dist, ta = D.dur * D.apex;
+  if (s <= ta) { const e = smoother(s / ta); return [0, lerp(D.eye, D.eye + D.rise, e), lerp(-D.dist, -D.dist - D.back, e)]; }
+  const u = (s - ta) / (D.dur - ta);
+  return [0, D.eye + D.rise * (1 - smoother((u - 0.05) / 0.7)), lerp(-D.dist - D.back, zEnd, smoother(u))];
+}
 function trDepth(A, B, s, sPrev, T) {
-  const ys = depthList(A, B), n = ys.length, land = depthDur(A, B);
-  const out = { mono: lerp(A.mono, B.mono, smooth(land - DEPTH.land - 0.5, land - 0.1, s)), goo: 0, thresh: 0.5, morph: 0 };
+  const D = DEPTH, ys = depthList(A, B), n = ys.length, land = D.dur;
+  const out = { mono: lerp(A.mono, B.mono, smooth(land * 0.62, land * 0.97, s)), goo: 0, thresh: 0.5, morph: 0 };
   if (s >= land) { drawYear(B, s - land); return out; }
-  const t = camT(s, n), tp = camT(Math.max(0, s - 1 / 30), n), speed = (t - tp) * 30;   // years per second
-  const flight = smooth(0, 0.6, s) * (1 - smooth(land - 0.7, land - 0.05, s));
-  const cam = railAt(Math.max(0, t));
-  const roll = (DEPTH_ROLL * Math.sin(Math.PI * clamp01(t / (n - 1))) + 0.25 * Math.sin(T / 1000 * 7.3) * flight * Math.min(1, speed / 2)) * Math.PI / 180;
-  // the void of time: the world darkens around the years mid-flight
-  if (flight > 0.01) {
-    const g = tctx.createRadialGradient(W / 2, H / 2, H * 0.1, W / 2, H / 2, W * 0.75);
-    g.addColorStop(0, `rgba(10,6,2,${0.25 * flight})`); g.addColorStop(1, `rgba(4,2,0,${0.8 * flight})`);
+  const cam = roadCamera(s, n), camP = roadCamera(Math.max(0, s - 1 / 30), n);
+  const PU = 0.25 * W;                                                // px per world unit at the slide's own distance
+  const proj = (c, x, y, z) => { const dz = z - c[2]; if (dz < 0.05) return null; const sc = D.dist / dz;
+    return [W / 2 + (x - c[0]) * PU * sc, H / 2 - (y - c[1]) * PU * sc, sc, dz]; };
+  const night = smooth(0.25, 1.6, s) * (1 - smooth(land - 1.6, land - 0.15, s));
+  // the dark around the road
+  if (night > 0.01) {                                              // stage light: dark sky, a warm glow on the horizon, a dark floor
+    const hz = H / 2 + (cam[1] - D.eye) * 0;                          // the horizon sits at the centre (camera looks level)
+    const g = tctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, `rgba(3,2,1,${0.96 * night})`); g.addColorStop(0.42, `rgba(28,16,6,${0.9 * night})`);
+    g.addColorStop(0.5, `rgba(120,70,20,${0.55 * night})`); g.addColorStop(0.56, `rgba(22,12,5,${0.9 * night})`); g.addColorStop(1, `rgba(2,1,0,${0.97 * night})`);
     tctx.fillStyle = g; tctx.fillRect(0, 0, W, H);
   }
-  tctx.save(); tctx.translate(W / 2, H / 2); tctx.rotate(roll); tctx.translate(-W / 2, -H / 2);
-  // dust: depth-scaled specks that streak with speed
-  if (flight > 0.01) {
-    tctx.strokeStyle = 'rgba(255,236,200,1)'; tctx.lineCap = 'round';
-    const camP = railAt(Math.max(0, tp));
-    for (const [px, py, pz, sz] of DUST) {
-      const d = t - pz + 1, dp = tp - pz + 1;
-      if (d < 0.12 || d > 6 || dp < 0.05) continue;
-      const x = W / 2 + (px - cam[0]) * W / d, y = H / 2 + (py - cam[1]) * H / d;
-      const xp = W / 2 + (px - camP[0]) * W / dp, yp = H / 2 + (py - camP[1]) * H / dp;
-      const a = flight * smooth(0.12, 0.5, d) * (1 - smooth(2.5, 6, d)) * 0.7;
-      if (a < 0.02) continue;
-      tctx.globalAlpha = a; tctx.lineWidth = Math.min(6, sz * 1.6 * k / d);
-      tctx.beginPath(); tctx.moveTo(xp, yp); tctx.lineTo(x + 0.01, y); tctx.stroke();
+  // the floor: lines running to the horizon, and crossing lines that fade with distance
+  if (night > 0.01) {
+    tctx.save(); tctx.lineCap = 'round';
+    const zNear = cam[2] + 0.4, zFar = cam[2] + 70;
+    for (let x = -14; x <= 14; x += 2) {
+      const p = proj(cam, x, 0, zNear), q = proj(cam, x, 0, zFar); if (!p || !q) continue;
+      const g = tctx.createLinearGradient(p[0], p[1], q[0], q[1]);
+      const edge = Math.abs(x) === 2 ? 0.85 : 0.38;
+      g.addColorStop(0, `rgba(255,236,205,${edge * night})`); g.addColorStop(1, 'rgba(255,236,205,0)');
+      tctx.strokeStyle = g; tctx.lineWidth = Math.abs(x) === 2 ? 3.2 * k : 1.9 * k;
+      tctx.beginPath(); tctx.moveTo(p[0], p[1]); tctx.lineTo(q[0], q[1]); tctx.stroke();
     }
-    tctx.globalAlpha = 1;
+    for (let z = Math.ceil(zNear / 2) * 2; z < cam[2] + 40; z += 2) {
+      const p = proj(cam, -14, 0, z), q = proj(cam, 14, 0, z); if (!p || !q) continue;
+      tctx.globalAlpha = 0.3 * night * (1 - smooth(12, 40, z - cam[2]));
+      tctx.strokeStyle = 'rgb(255,236,205)'; tctx.lineWidth = 1.7 * k;
+      tctx.beginPath(); tctx.moveTo(p[0], p[1]); tctx.lineTo(q[0], q[1]); tctx.stroke();
+    }
+    tctx.restore();
   }
   // the years, far → near
-  const trailFade = 1 - smooth(n - 1.35, n - 1, t);
-  for (let j = 0; j < n; j++) {
-    const d = t - j + 1;
-    if (d < 0.42) continue;
-    const sc = 1 / d, rp = railPoint(j), side = j % 2 ? 1 : -1, last = j === n - 1;
-    const sweep = j === 0 ? 0 : Math.pow(1 - smooth(0.42, 1.0, d), 2);
-    const sx = W / 2 + (rp[0] - cam[0]) * W * sc + side * sweep * 0.8 * W, sy = H / 2 + (rp[1] - cam[1]) * H * sc + sweep * 0.14 * H;
-    const haze = 1 - smooth(1.5, 3.8, d);
-    const a = smooth(0.42, 0.52, d) * haze * (last ? 1 : trailFade);
+  const items = ys.map((y, i) => {
+    const x = i === 0 || i === n - 1 ? 0 : (i % 2 ? 1 : -1) * D.side;
+    return { y, i, x, z: i * D.gap };
+  }).sort((a, b) => b.z - a.z);
+  for (const it of items) {
+    const p = proj(cam, it.x, D.eye, it.z), pp = proj(camP, it.x, D.eye, it.z);
+    if (!p || p[3] < 0.35) continue;
+    const [X, Y, sc, dz] = p, vx = pp ? X - pp[0] : 0, vy = pp ? Y - pp[1] : 0;
+    const fog = 1 - smooth(26, 60, dz), near = smooth(0.35, 0.9, dz);
+    const first = it.i === 0, last = it.i === n - 1;
+    const paneA = (first ? smooth(1.05, 1.7, dz / D.dist) : 1) * (last ? 1 - smooth(0.85, 1, s / land) : 1) * night;
+    const a = fog * near;
     if (a < 0.01) continue;
-    const focus = d < 1 ? (1 - d) * 26 : (d - 1) * 2.2;                             // focus on the year settling in front
-    const zb = Math.min(0.09, Math.abs(speed) * 0.018 / d) * flight;                 // zoom blur grows with speed and closeness
-    const sp = yearSprite(ys[j]);
-    if (j === 0 && A.posters && A.posters.length) {
-      tctx.save(); tctx.translate(sx, sy); tctx.scale(sc, sc); tctx.translate(-W / 2, -H / 2); drawPosters(A, 99, 1 - a * (1 - smooth(1, 1.8, d) * 0.6)); tctx.restore();
+    const sp = yearSprite(it.y);
+    const pane = first ? D.pane : D.paneSmall, pw = pane[0] * PU * sc, ph = pane[1] * PU * sc, floorY = proj(cam, it.x, 0, it.z)[1];
+    // contact shadow on the floor
+    if (paneA > 0.01) {
+      tctx.save(); tctx.globalAlpha = 0.55 * a * paneA; tctx.fillStyle = '#000';
+      tctx.beginPath(); tctx.ellipse(X, floorY, pw * 0.55, Math.max(1, pw * 0.05), 0, 0, Math.PI * 2); tctx.fill(); tctx.restore();
+      // reflection in the floor
+      drawSprite(sp, sp.face, X, floorY + (floorY - Y), sc, 0.13 * a * paneA, vx, vy, true);
+      // the glass pane
+      tctx.save(); tctx.globalAlpha = a * paneA;
+      const gx = X - pw / 2, gy = Math.min(floorY - ph, Y - ph / 2);
+      const g = tctx.createLinearGradient(gx, gy, gx + pw, gy + ph);
+      g.addColorStop(0, 'rgba(255,250,240,0.16)'); g.addColorStop(0.45, 'rgba(255,250,240,0.04)'); g.addColorStop(1, 'rgba(255,250,240,0.09)');
+      tctx.fillStyle = g; tctx.fillRect(gx, gy, pw, ph);
+      tctx.strokeStyle = 'rgba(255,248,235,0.55)'; tctx.lineWidth = Math.max(1, 1.4 * k * Math.sqrt(sc)); tctx.strokeRect(gx, gy, pw, ph);
+      tctx.fillStyle = 'rgba(255,255,255,0.5)'; tctx.fillRect(gx, gy, pw, Math.max(1, 2 * k * Math.sqrt(sc)));     // lit top edge
+      tctx.restore();
     }
-    const extA = j === 0 ? smooth(1, 1.6, d) : last ? smooth(1, 1.35, d) : 1;          // the slides themselves have no block
-    drawSprite(sp, sp.ext, sx, sy, sc, a * extA, focus * k, zb);
-    drawSprite(sp, sp.face, sx, sy, sc, a, focus * k, zb);
+    if (first && A.posters && A.posters.length) {
+      tctx.save(); tctx.translate(X, Y); tctx.scale(sc, sc); tctx.translate(-W / 2, -H / 2); drawPosters(A, 99, 1 - a); tctx.restore();
+    }
+    const extA = first ? smooth(1.05, 1.5, dz / D.dist) : last ? 1 - smooth(0.8, 0.97, s / land) : 1;
+    drawSprite(sp, sp.ext, X, Y, sc, a * extA, vx, vy);
+    drawSprite(sp, sp.face, X, Y, sc, a, vx, vy);
   }
-  tctx.restore();
   // widescreen bars
-  const bars = easeInOutCubic(clamp01(s / 0.7)) * (1 - easeInOutCubic(clamp01((s - (land - 0.7)) / 0.6)));
+  const bars = smoother(s / 1.0) * (1 - smoother((s - (land - 1.0)) / 0.9));
   if (bars > 0.002) { const h = LETTERBOX * H * bars; vctx.fillStyle = '#000'; vctx.fillRect(0, 0, W, h); vctx.fillRect(0, H - h, W, h); mediaOn = true; }
-  return Object.assign(out, { bgZoom: 1 + 0.7 * Math.sin(Math.PI * clamp01(t / (n - 1))), bgOff: -0.3 * Math.sin(Math.PI * clamp01(t / (n - 1))) });
+  const lift = (cam[1] - D.eye) / D.rise;
+  return Object.assign(out, { bgZoom: 1 + 0.45 * lift, bgOff: 0 });
 }
 const mediaCache = {};
 const loadMediaCached = n => mediaCache[n] || (mediaCache[n] = loadMedia(n));
@@ -2249,7 +2260,7 @@ const TRANSITIONS = {
   'year>year':                { pick: (A, B) => A.year === B.year
                                   ? { fn: trYearColor, dur: () => 1.2, t0: (A, B, now) => now - YEAR_SHADOW_GROW * 1000 - 50 }
                                   : (A.depart === 'depth' || B.arrive === 'depth')
-                                    ? { fn: trDepth, dur: (A, B) => depthDur(A, B) + YEAR_SHADOW_GROW, formedAt: 0,
+                                    ? { fn: trDepth, dur: () => DEPTH.dur + YEAR_SHADOW_GROW, formedAt: 0,
                                         t0: (A, B, now, dur) => now + (dur - YEAR_SHADOW_GROW) * 1000 }
                                     : { fn: trFly, dur: () => FLY.zoomIn[1] + YEAR_SHADOW_GROW, formedAt: FLY.zoomIn[1] } },
 };
