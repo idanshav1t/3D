@@ -144,10 +144,40 @@
   <section data-scene="media" data-year="1991" data-mono="off" data-caption="Terminator 2: Judgment Day"></section>
 
   <section data-scene="year" data-year="1993" data-mono="off" data-imgs="y1993-jurassic" data-names="Jurassic Park"></section>
-  <section data-scene="media" data-year="1993" data-mono="off" data-caption="Jurassic Park"></section>
+  <section data-scene="media" data-year="1993" data-mono="off" data-src="1993-jurassic" data-caption="Jurassic Park"></section>
 
-  <section data-scene="year" data-year="1995" data-mono="off" data-imgs="y1995-pixar-films" data-names="Toy Story"></section>
-  <section data-scene="media" data-year="1995" data-mono="off" data-caption="Toy Story"></section>
+  <section data-scene="year" data-year="1995" data-mono="off" data-imgs="y1995-toystory" data-names="Toy Story"></section>
+  <section data-scene="media" data-year="1995" data-mono="off" data-src="1995-toystory" data-caption="Toy Story"></section>
+
+  <section data-scene="year" data-year="1997" data-mono="off" data-imgs="y1997-titanic" data-names="Titanic"></section>
+  <section data-scene="media" data-year="1997" data-mono="off" data-src="1997-titanic" data-caption="Titanic"></section>
+
+  <section data-scene="year" data-year="1999" data-mono="off" data-imgs="y1999-matrix" data-names="The Matrix"></section>
+  <section data-scene="media" data-year="1999" data-mono="off" data-src="1999-matrix" data-caption="The Matrix"></section>
+
+  <section data-scene="year" data-year="2006" data-mono="off" data-imgs="y2006-pirates" data-names="Pirates of the Caribbean: Dead Man's Chest"></section>
+  <section data-scene="media" data-year="2006" data-mono="off" data-src="2006-pirates" data-caption="Pirates of the Caribbean: Dead Man's Chest"></section>
+
+  <section data-scene="year" data-year="2013" data-mono="off" data-imgs="y2013-monsters" data-names="Monsters University"></section>
+  <section data-scene="media" data-year="2013" data-mono="off" data-src="2013-monsters" data-caption="Monsters University"></section>
+
+  <section data-scene="year" data-year="2014" data-mono="off" data-imgs="y2014-interstellar" data-names="Interstellar"></section>
+  <section data-scene="media" data-year="2014" data-mono="off" data-src="2014-interstellar" data-caption="Interstellar"></section>
+
+  <section data-scene="year" data-year="2018" data-mono="off" data-imgs="y2018-infinitywar" data-names="Avengers: Infinity War"></section>
+  <section data-scene="media" data-year="2018" data-mono="off" data-src="2018-infinitywar" data-caption="Avengers: Infinity War"></section>
+
+  <section data-scene="year" data-year="2018" data-mono="off" data-imgs="y2018-spiderverse" data-names="Spider-Man: Into the Spider-Verse"></section>
+  <section data-scene="media" data-year="2018" data-mono="off" data-src="2018-spiderverse" data-caption="Spider-Man: Into the Spider-Verse"></section>
+
+  <section data-scene="year" data-year="2019" data-mono="off" data-imgs="y2019-mandalorian" data-names="The Mandalorian"></section>
+  <section data-scene="media" data-year="2019" data-mono="off" data-src="2019-mandalorian" data-caption="The Mandalorian"></section>
+
+  <section data-scene="year" data-year="2022" data-mono="off" data-imgs="y2022-avatar" data-names="Avatar: The Way of Water"></section>
+  <section data-scene="media" data-year="2022" data-mono="off" data-src="2022-avatar" data-caption="Avatar: The Way of Water"></section>
+
+  <section data-scene="year" data-year="2024" data-mono="off" data-imgs="y2024-flow" data-names="Flow"></section>
+  <section data-scene="media" data-year="2024" data-mono="off" data-src="2024-flow" data-caption="Flow"></section>
 
 
 </div></div>
@@ -1166,9 +1196,9 @@ Please report this to https://github.com/markedjs/marked.`,e){let e=`<p>An error
 /* MEDIA_BASE set: media is streamed from there (e.g. a GitHub Pages site) and this file stays small.
    MEDIA_BASE empty: media comes from media/<name>.js next to this file (offline folder version). */
 const MEDIA_BASE = "media";
-const MEDIA_LIST = {"1968": "image/jpeg", "1971": "video/mp4", "1972": "video/mp4", "1976": "video/mp4", "1982-startrek": "video/mp4", "1982-tron": "video/mp4", "1986-pixar": "video/mp4", "catmull": "image/jpeg", "y1972-hand": "image/jpeg", "y1976-futureworld": "image/jpeg", "y1982-startrek": "image/jpeg", "y1982-tron": "image/jpeg", "y1986-luxo": "image/jpeg", "y1986-pixar": "image/jpeg", "y1988-pixar-software": "image/jpeg", "y1991-t2": "image/jpeg", "y1993-jurassic": "image/jpeg", "y1995-pixar-films": "image/jpeg"};            // name → mime type (written by the build)
-const MEDIA_EXT  = {"1968": ".jpg", "1971": ".mp4", "1972": ".mp4", "1976": ".mp4", "1982-startrek": ".mp4", "1982-tron": ".mp4", "1986-pixar": ".mp4", "catmull": ".jpg", "y1972-hand": ".jpg", "y1976-futureworld": ".jpg", "y1982-startrek": ".jpg", "y1982-tron": ".jpg", "y1986-luxo": ".jpg", "y1986-pixar": ".jpg", "y1988-pixar-software": ".jpg", "y1991-t2": ".jpg", "y1993-jurassic": ".jpg", "y1995-pixar-films": ".jpg"};             // name → file extension
-const MEDIA_ALT  = {"1972": ".webm", "1976": ".webm", "1982-startrek": ".webm", "1982-tron": ".webm", "1986-pixar": ".webm"};             // name → extension of a smaller WebM copy (videos)
+const MEDIA_LIST = {"1968": "image/jpeg", "1971": "video/mp4", "1972": "video/mp4", "1976": "video/mp4", "1982-startrek": "video/mp4", "1982-tron": "video/mp4", "1986-pixar": "video/mp4", "1993-jurassic": "video/mp4", "1995-toystory": "video/mp4", "1997-titanic": "video/mp4", "1999-matrix": "video/mp4", "2006-pirates": "video/mp4", "2013-monsters": "video/mp4", "2014-interstellar": "video/mp4", "2018-infinitywar": "video/mp4", "2018-spiderverse": "video/mp4", "2019-mandalorian": "video/mp4", "2022-avatar": "video/mp4", "2024-flow": "video/mp4", "catmull": "image/jpeg", "poster-avatar-fire-and-ash": "image/jpeg", "poster-avengers-endgame": "image/jpeg", "poster-dune-part-two": "image/jpeg", "poster-gravity": "image/jpeg", "poster-interstellar": "image/jpeg", "poster-the-lion-king": "image/jpeg", "y1972-hand": "image/jpeg", "y1976-futureworld": "image/jpeg", "y1982-startrek": "image/jpeg", "y1982-tron": "image/jpeg", "y1986-luxo": "image/jpeg", "y1986-pixar": "image/jpeg", "y1988-pixar-software": "image/jpeg", "y1991-t2": "image/jpeg", "y1993-jurassic": "image/jpeg", "y1995-toystory": "image/jpeg", "y1997-titanic": "image/jpeg", "y1999-matrix": "image/jpeg", "y2006-pirates": "image/jpeg", "y2013-monsters": "image/jpeg", "y2014-interstellar": "image/jpeg", "y2018-infinitywar": "image/jpeg", "y2018-spiderverse": "image/jpeg", "y2019-mandalorian": "image/jpeg", "y2022-avatar": "image/jpeg", "y2024-flow": "image/jpeg"};            // name → mime type (written by the build)
+const MEDIA_EXT  = {"1968": ".jpg", "1971": ".mp4", "1972": ".mp4", "1976": ".mp4", "1982-startrek": ".mp4", "1982-tron": ".mp4", "1986-pixar": ".mp4", "1993-jurassic": ".mp4", "1995-toystory": ".mp4", "1997-titanic": ".mp4", "1999-matrix": ".mp4", "2006-pirates": ".mp4", "2013-monsters": ".mp4", "2014-interstellar": ".mp4", "2018-infinitywar": ".mp4", "2018-spiderverse": ".mp4", "2019-mandalorian": ".mp4", "2022-avatar": ".mp4", "2024-flow": ".mp4", "catmull": ".jpg", "poster-avatar-fire-and-ash": ".jpg", "poster-avengers-endgame": ".jpg", "poster-dune-part-two": ".jpg", "poster-gravity": ".jpg", "poster-interstellar": ".jpg", "poster-the-lion-king": ".jpg", "y1972-hand": ".jpg", "y1976-futureworld": ".jpg", "y1982-startrek": ".jpg", "y1982-tron": ".jpg", "y1986-luxo": ".jpg", "y1986-pixar": ".jpg", "y1988-pixar-software": ".jpg", "y1991-t2": ".jpg", "y1993-jurassic": ".jpg", "y1995-toystory": ".jpg", "y1997-titanic": ".jpg", "y1999-matrix": ".jpg", "y2006-pirates": ".jpg", "y2013-monsters": ".jpg", "y2014-interstellar": ".jpg", "y2018-infinitywar": ".jpg", "y2018-spiderverse": ".jpg", "y2019-mandalorian": ".jpg", "y2022-avatar": ".jpg", "y2024-flow": ".jpg"};             // name → file extension
+const MEDIA_ALT  = {"1972": ".webm", "1976": ".webm", "1982-startrek": ".webm", "1982-tron": ".webm", "1986-pixar": ".webm", "1993-jurassic": ".webm", "1995-toystory": ".webm", "1997-titanic": ".webm", "1999-matrix": ".webm", "2006-pirates": ".webm", "2013-monsters": ".webm", "2014-interstellar": ".webm", "2018-infinitywar": ".webm", "2018-spiderverse": ".webm", "2019-mandalorian": ".webm", "2022-avatar": ".webm", "2024-flow": ".webm"};             // name → extension of a smaller WebM copy (videos)
 const WEBM_OK = (() => { try { return document.createElement('video').canPlayType('video/webm; codecs="vp9, opus"') === 'probably'; } catch (e) { return false; } })();
 const MEDIA_URLS = {}, MEDIA_BLOBS = {}, MEDIA_FALLBACK = {};
 function mediaArrived(name, type, b64) {      // called by each media/<name>.js
@@ -1252,7 +1282,7 @@ const SHADE_FROM    = 0.55;         // bottom gradient starts here (share of sli
 const CAPTION_SIZE  = 0.036;        // caption size (share of slide width)
 
 // timeline (year → another year flies the camera along it)
-const TIMELINE = [1968, 1971, 1972, 1976, 1982, 1986, 1988, 1991, 1993, 1995];
+const TIMELINE = [1968, 1971, 1972, 1976, 1982, 1986, 1988, 1991, 1993, 1995, 1997, 1999, 2006, 2013, 2014, 2018, 2019, 2022, 2024];
 const YEAR_SPACING = 1.1;           // distance between neighbouring marked years (share of slide width, at full zoom)
 const TIMELINE_ZOOM = 0.21;         // how far the camera pulls back (lower = more years visible)
 const FLY = { retract: 1.0, outEnd: 2.1, pan: [1.65, 2.75], zoomIn: [2.25, 3.4] };   // seconds
