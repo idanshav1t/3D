@@ -1468,13 +1468,20 @@ function softShadow(list, alpha) {
   bctx.setTransform(1, 0, 0, 1, 0, 0); bctx.clearRect(0, 0, bcv.width, bcv.height);
   bctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const ang = (90 - SHADOW_ANGLE) * Math.PI / 180;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   for (const d of list) {
-    const off = d.slen + 0.006 * W * d.sc;
+    const off = d.slen + 0.006 * W * d.sc, e = Math.max(d.L.w, d.L.cap) * d.sc * 1.2;
     for (let s = 0; s <= 4; s++) drawLetter(bctx, d.L, d.px + Math.cos(ang) * off * s / 4, d.py + Math.sin(ang) * off * s / 4, d.sc, 0, 0, 0, 'flat', '#2a1405');
+    x0 = Math.min(x0, d.px - e, d.px - e + Math.cos(ang) * off); x1 = Math.max(x1, d.px + e, d.px + e + Math.cos(ang) * off);
+    y0 = Math.min(y0, d.py - e, d.py - e + Math.sin(ang) * off); y1 = Math.max(y1, d.py + e, d.py + e + Math.sin(ang) * off);
   }
+  const bl = 10 * k * DPR, m = bl * 3 + 2;                     // blur reach
+  const sx = Math.max(0, Math.floor(x0 * DPR - m)), sy = Math.max(0, Math.floor(y0 * DPR - m));
+  const ex = Math.min(bcv.width, Math.ceil(x1 * DPR + m)), ey = Math.min(bcv.height, Math.ceil(y1 * DPR + m));
+  if (ex <= sx || ey <= sy) return;
   tctx.save(); tctx.setTransform(1, 0, 0, 1, 0, 0);
-  if ('filter' in tctx) tctx.filter = `blur(${10 * k * DPR}px)`;
-  tctx.globalAlpha = SOFT_SHADOW * alpha; tctx.drawImage(bcv, 0, 0);
+  if ('filter' in tctx) tctx.filter = `blur(${bl}px)`;
+  tctx.globalAlpha = SOFT_SHADOW * alpha; tctx.drawImage(bcv, sx, sy, ex - sx, ey - sy, sx, sy, ex - sx, ey - sy);
   tctx.restore();
 }
 
@@ -1493,12 +1500,18 @@ function drawShape(S, T, o = { dx: 0, dy: 0, spin: 0, vx: 0 }) {
   });
   const R = S.size * W, cx = (S.x + o.dx) * W, cy = S.y * H + o.dy * W + 0.006 * W * Math.sin(T / 1000 * 0.5 + S.x * 9);
   const proj = ([x, y, z]) => { const p = 1 / (1 - z * 0.1); return [cx + x * R * p, cy - y * R * p]; };
-  sctx.save();
-  if (Math.abs(o.vx) > 0.5) {                        // smear the cube along its exit
-    const stx = 1 + Math.min(1.4, Math.abs(o.vx) / (R * 0.35));
-    sctx.translate(cx - Math.sign(o.vx) * (stx - 1) * R * 0.5, cy); sctx.scale(stx, 1); sctx.translate(-cx, -cy);
-  }
-  sctx.filter = S.soft ? `blur(${S.soft * k}px)` : 'none';
+  // draw the faces sharp into a small buffer, then soften the whole cube once:
+  // no seams between faces, and a face turning into view fades in instead of popping on
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  const PP = P.map(p => { const q = proj(p); x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); return q; });
+  const pad = 6 * k + 4;
+  const ox = Math.floor((x0 - pad) * DPR), oy = Math.floor((y0 - pad) * DPR);
+  const bw = Math.ceil((x1 + pad) * DPR) - ox, bh = Math.ceil((y1 + pad) * DPR) - oy;
+  if (!cubeBuf) { cubeBuf = document.createElement('canvas'); cubeCtx = cubeBuf.getContext('2d'); }
+  if (cubeBuf.width < bw || cubeBuf.height < bh) { cubeBuf.width = Math.max(bw, cubeBuf.width); cubeBuf.height = Math.max(bh, cubeBuf.height); }
+  const g = cubeCtx;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bw, bh);
+  g.setTransform(DPR, 0, 0, DPR, -ox, -oy);
   for (const f of F) {
     const v0 = P[f[0]], v1 = P[f[1]], v2 = P[f[2]];
     const e1 = [v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]], e2 = [v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]];
@@ -1506,18 +1519,28 @@ function drawShape(S, T, o = { dx: 0, dy: 0, spin: 0, vx: 0 }) {
     const c = f.reduce((acc, i) => [acc[0]+P[i][0], acc[1]+P[i][1], acc[2]+P[i][2]], [0,0,0]);
     if (n[0]*c[0] + n[1]*c[1] + n[2]*c[2] < 0) n = n.map(q => -q);
     const ln = Math.hypot(...n); n = n.map(q => q / ln);
-    if (n[2] <= 0.01) continue;
+    const vis = clamp01((n[2] - 0.005) / 0.1); if (vis <= 0) continue;
     const shade = Math.max(0, n[0]*LIGHT[0] + n[1]*LIGHT[1] + n[2]*LIGHT[2]);
     const ft = clamp01(shade) * (FACE_TONES.length - 1), fi = Math.min(FACE_TONES.length - 2, Math.floor(ft));
     const tone = lerp(FACE_TONES[fi], FACE_TONES[fi + 1], ft - fi);      // flat per face, but changes smoothly as it turns
-    sctx.beginPath();
-    f.forEach((i, j) => { const [px, py] = proj(P[i]); j ? sctx.lineTo(px, py) : sctx.moveTo(px, py); });
-    sctx.closePath();
-    sctx.fillStyle = toneCol(tone); sctx.fill();
-    if (EDGE_TONE) { sctx.strokeStyle = toneCol(EDGE_TONE); sctx.lineWidth = 1.6 * k; sctx.lineJoin = 'round'; sctx.stroke(); }
+    g.globalAlpha = vis * vis * (3 - 2 * vis);
+    g.beginPath();
+    f.forEach((i, j) => { const [px, py] = PP[i]; j ? g.lineTo(px, py) : g.moveTo(px, py); });
+    g.closePath();
+    g.fillStyle = toneCol(tone); g.fill();
+    if (EDGE_TONE) { g.strokeStyle = toneCol(EDGE_TONE); g.lineWidth = 1.6 * k; g.lineJoin = 'round'; g.stroke(); }
   }
+  g.globalAlpha = 1;
+  sctx.save();
+  if (Math.abs(o.vx) > 0.5) {                        // smear the cube along its exit
+    const stx = 1 + Math.min(1.4, Math.abs(o.vx) / (R * 0.35));
+    sctx.translate(cx - Math.sign(o.vx) * (stx - 1) * R * 0.5, cy); sctx.scale(stx, 1); sctx.translate(-cx, -cy);
+  }
+  sctx.filter = S.soft ? `blur(${S.soft * k}px)` : 'none';
+  sctx.drawImage(cubeBuf, 0, 0, bw, bh, ox / DPR, oy / DPR, bw / DPR, bh / DPR);
   sctx.restore();
 }
+var cubeBuf = null, cubeCtx = null;
 
 /* ---------- year slides: one long shadow that extends out of frame, then holds ---------- */
 function glyphImage(L) {                     // white silhouette of one letter, cached
@@ -1545,19 +1568,40 @@ function drawYear(scene, el, o = {}) {       // el = seconds since the number fo
     } else {
       bctx.setTransform(1, 0, 0, 1, 0, 0); bctx.clearRect(0, 0, bcv.width, bcv.height);
       bctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      const stepPx = 1.4 / DPR, n = Math.ceil(len / stepPx);
-      let bx0 = 1e9, by0 = 1e9, bx1 = -1e9;
+      // The shadow is the letters stamped n times along the shadow line. Instead of n stamps per letter
+      // (thousands of draws per frame), stamp once and double: copy the stack onto itself shifted by
+      // 1, 2, 4, 8… steps. Same stamps, same result, ~11 draws. Shifts are whole device pixels (no resampling).
+      const vx = dx * 1.4, vy = dy * 1.4, n = Math.ceil(len * DPR / 1.4);      // one step, in device pixels
+      let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
       for (const L of scene.letters) {
         const im = glyphImage(L), w = im.iw * ys, h = im.ih * ys, x0 = PX(L) - w / 2, y0 = PY(L) - h / 2;
-        bx0 = Math.min(bx0, x0); by0 = Math.min(by0, y0); bx1 = Math.max(bx1, x0 + w);
-        for (let i = n; i >= 1; i--) bctx.drawImage(im.c, x0 + dx * i * stepPx, y0 + dy * i * stepPx, w, h);
+        bx0 = Math.min(bx0, x0); by0 = Math.min(by0, y0); bx1 = Math.max(bx1, x0 + w); by1 = Math.max(by1, y0 + h);
+        bctx.drawImage(im.c, x0 + Math.round(vx) / DPR, y0 + Math.round(vy) / DPR, w, h);   // stamp 1
       }
+      bctx.setTransform(1, 0, 0, 1, 0, 0);
+      const CW = bcv.width, CH = bcv.height;
+      let r0x = Math.max(0, Math.floor((bx0 * DPR) + Math.round(vx)) - 2), r0y = Math.max(0, Math.floor((by0 * DPR) + Math.round(vy)) - 2);
+      let r1x = Math.min(CW, Math.ceil((bx1 * DPR) + Math.round(vx)) + 2), r1y = Math.min(CH, Math.ceil((by1 * DPR) + Math.round(vy)) + 2);
+      const shiftCopy = m => {                                                   // stack ∪= stack shifted by m steps
+        const ox = Math.round(m * vx), oy = Math.round(m * vy);
+        if (r1x <= r0x || r1y <= r0y) return;
+        bctx.drawImage(bcv, r0x, r0y, r1x - r0x, r1y - r0y, r0x + ox, r0y + oy, r1x - r0x, r1y - r0y);
+        r0x = Math.max(0, Math.min(r0x, r0x + ox)); r0y = Math.max(0, Math.min(r0y, r0y + oy));
+        r1x = Math.min(CW, Math.max(r1x, r1x + ox)); r1y = Math.min(CH, Math.max(r1y, r1y + oy));
+      };
+      let m = 1;
+      while (m * 2 <= n) { shiftCopy(m); m *= 2; }                              // stamps 1..m
+      if (m < n) shiftCopy(n - m);                                                // stamps 1..n
+      bctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       // colour the whole shadow: near the letters → black far away
       const gr = bctx.createLinearGradient(bx0, by0, bx0 + dx * (full + (bx1 - bx0)), by0 + dy * (full + (bx1 - bx0)));
       gr.addColorStop(0, SHADOW_NEAR); gr.addColorStop(0.35, SHADOW_FAR); gr.addColorStop(1, YEAR_SHADOW_FAR);
-      bctx.globalCompositeOperation = 'source-in'; bctx.fillStyle = gr; bctx.fillRect(0, 0, W, H);
+      bctx.globalCompositeOperation = 'source-in'; bctx.fillStyle = gr;               // only the shadow's own area
+      bctx.fillRect(r0x / DPR, r0y / DPR, (r1x - r0x) / DPR, (r1y - r0y) / DPR);
       bctx.globalCompositeOperation = 'source-over';
-      tctx.save(); tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.drawImage(bcv, 0, 0); tctx.restore();
+      tctx.save(); tctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (r1x > r0x && r1y > r0y) tctx.drawImage(bcv, r0x, r0y, r1x - r0x, r1y - r0y, r0x, r0y, r1x - r0x, r1y - r0y);
+      tctx.restore();
       if (len >= full - 0.5) {               // fully extended: keep it, it never changes again
         const c = document.createElement('canvas'); c.width = bcv.width; c.height = bcv.height;
         c.getContext('2d').drawImage(bcv, 0, 0); scene.shadowCache = c; scene.shadowKey = ys + ':' + ox;
@@ -1569,6 +1613,13 @@ function drawYear(scene, el, o = {}) {       // el = seconds since the number fo
 }
 const yearSide = scene => { const lay = scene.imgs && scene.imgs.length ? 1 : 0; return { sc: lerp(1, YEAR_SIDE_SCALE, lay), ox: YEAR_SIDE_X * W * lay }; };
 // the year's pictures, as prints on the left (clean layer: no film effect)
+function cubicBezier(x1, y1, x2, y2) {       // same curves as CSS / After Effects graph handles
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = t => ((ax * t + bx) * t + cx) * t, Y = t => ((ay * t + by) * t + cy) * t;
+  const N = 256, tab = new Float32Array(N + 1);              // x → y lookup, built once
+  for (let i = 0, t = 0; i <= N; i++) { const x = i / N; while (t < 1 && X(t) < x) t += 1 / 4096; tab[i] = Y(Math.min(1, t)); }
+  return x => { if (x <= 0) return 0; if (x >= 1) return 1; const f = x * N, i = Math.floor(f); return tab[i] + (tab[i + 1] - tab[i]) * (f - i); };
+}
 const easeInOutSine = x => 0.5 - 0.5 * Math.cos(Math.PI * clamp01(x));
 const easeOutQuint = x => 1 - Math.pow(1 - clamp01(x), 5);
 function drawCards(scene, el, lay, out) {
@@ -1976,9 +2027,12 @@ function roundRectPath(c, x, y, w, h, r) {
   c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
 }
 // a = opacity, lift = px offset, sc = scale, capA = caption opacity, T = time (slow push-in on the picture)
-function drawMedia(scene, a, lift, sc, capA, T) {
+function drawMedia(scene, a, lift, sc, capA, T, vy = 0) {
   if (a <= 0.003) return;
   const R = mediaRect(), rad = MEDIA_RADIUS * W, m = scene.media;
+  const str = Math.min(0.3 * R.h, Math.abs(vy) * 0.8);         // motion stretch: the frame elongates along its motion,
+  const stretch = c => { if (str < 0.5) return;                 // its leading edge stays put
+    const ay = vy > 0 ? R.y + R.h : R.y; c.translate(0, ay); c.scale(1, 1 + str / R.h); c.translate(0, -ay); };
   // 1. black → transparent across the bottom of the whole slide (behind the frame)
   if (capA > 0.003) {
     tctx.save(); tctx.globalAlpha = capA;
@@ -1990,7 +2044,7 @@ function drawMedia(scene, a, lift, sc, capA, T) {
   // 2. the frame
   tctx.save();
   tctx.globalAlpha = a;
-  tctx.translate(W / 2, R.y + R.h / 2 + lift); tctx.scale(sc, sc); tctx.translate(-W / 2, -(R.y + R.h / 2));
+  tctx.translate(W / 2, R.y + R.h / 2 + lift); tctx.scale(sc, sc); tctx.translate(-W / 2, -(R.y + R.h / 2)); stretch(tctx);
   for (const [blur, off, al] of [[70, 34, 0.6], [14, 6, 0.35]]) {        // wide soft shadow + tight one
     tctx.save(); tctx.shadowColor = `rgba(0,0,0,${al})`; tctx.shadowBlur = blur * k * DPR * sc; tctx.shadowOffsetY = off * k * DPR * sc;
     roundRectPath(tctx, R.x, R.y, R.w, R.h, rad); tctx.fillStyle = '#000'; tctx.fill(); tctx.restore();
@@ -2000,7 +2054,7 @@ function drawMedia(scene, a, lift, sc, capA, T) {
   const c = vctx;
   c.save();
   c.globalAlpha = a;
-  c.translate(W / 2, R.y + R.h / 2 + lift); c.scale(sc, sc); c.translate(-W / 2, -(R.y + R.h / 2));
+  c.translate(W / 2, R.y + R.h / 2 + lift); c.scale(sc, sc); c.translate(-W / 2, -(R.y + R.h / 2)); stretch(c);
   c.save(); roundRectPath(c, R.x, R.y, R.w, R.h, rad); c.clip();
   c.fillStyle = '#111'; c.fillRect(R.x, R.y, R.w, R.h);
   mediaEl(m);
@@ -2056,6 +2110,7 @@ function mediaIdle(scene, T) {
   drawMedia(scene, 1, 0, 1, 1, T);
 }
 // year → media: picture eases out and the shadow pulls in, the year glides straight to the top, the frame rises in
+const MEDIA_IN_AT = 1.0;                      // year → media: when the frame starts rising (s)
 function trYearMedia(A, B, s, sPrev, T) {
   const side = yearSide(A);
   if (s < 0.6) drawYear(A, 99, { shadowEl: YEAR_SHADOW_GROW * (1 - easeInOut(s / 0.6)), cardOut: s / 0.75 });
@@ -2064,10 +2119,10 @@ function trYearMedia(A, B, s, sPrev, T) {
     const m = easeInOutCubic(clamp01((s - 0.6) / 0.85));
     drawHeader(B, lerp(side.sc, HEADER_SCALE, m), lerp(H / 2, HEADER_Y * H, m), lerp(side.ox, 0, m));
   }
-  if (s > 0.85) {                              // the frame rises in from below the slide, mirroring its exit
-    const f = easeInOutSine((s - 0.85) / MEDIA_SLIDE);
-    const capA = easeInOut(clamp01((s - 1.6) / 0.6));
-    drawMedia(B, 1, (1 - f) * mediaTravel(), 1, capA, T);
+  if (s > MEDIA_IN_AT) {                       // the frame rises in from below the slide and settles softly
+    const D = mediaTravel(), f = MEDIA_IN((s - MEDIA_IN_AT) / MEDIA_IN_DUR), fp = MEDIA_IN((sPrev - MEDIA_IN_AT) / MEDIA_IN_DUR);
+    const capA = easeInOut(clamp01((s - MEDIA_IN_AT - 0.55) / 0.6));
+    drawMedia(B, 1, (1 - f) * D, 1, capA, T, -(f - fp) * D);
   }
   return { mono: lerp(A.mono, B.mono, 0.5), goo: 0, thresh: 0.5, morph: 0 };
 }
@@ -2120,17 +2175,20 @@ function trFly(A, B, s, sPrev, T) {
   return Object.assign(out, { bgOff: camX * 0.18, bgZoom: 1 + (1 - z) * 0.75 });
 }
 // media → a different year: picture and caption sink away, the year grows back to full size, then the timeline flight
-const SINK = 1.5;                         // seconds for the picture to leave and the year to grow back
+const SINK = 1.6;                         // seconds for the picture to leave and the year to grow back
 // the frame's full slide: from its place to just below the slide (and back, for the entrance)
-const MEDIA_SLIDE = 1.15;                    // seconds
+const MEDIA_IN  = cubicBezier(0.22, 1, 0.36, 1);    // entrance: whooshes in, long soft landing
+const MEDIA_OUT = cubicBezier(0.6, 0, 0.8, 0.25);   // exit: slow wind-up, then accelerates away
+const MEDIA_IN_DUR = 1.4, MEDIA_OUT_DUR = 1.15;     // seconds
+const MEDIA_HEADER_AT = 0.62;                        // exit: the year starts growing once the frame is this far through its exit
 const mediaTravel = () => H - mediaRect().y + 0.1 * H;
 function trMediaFly(A, B, s, sPrev, T) {
   if (s < SINK) {
-    // 1. the frame (with its caption) slides down and out at an even, readable speed
-    const out = easeInOutSine(s / MEDIA_SLIDE);
-    drawMedia(A, 1, out * mediaTravel(), 1, 1 - easeInOut(clamp01(s / 0.7)), T);
+    // 1. the frame (with its caption) slides down and away; it stretches along its motion while fast
+    const D = mediaTravel(), u = MEDIA_OUT(s / MEDIA_OUT_DUR), vy = D * (u - MEDIA_OUT(sPrev / MEDIA_OUT_DUR));
+    drawMedia(A, 1, u * D, 1, 1 - easeInOut(clamp01(s / 0.7)), T, vy);
     // 2. the year waits at the top, then grows to the centre behind the frame's top edge — they never cross
-    const e = easeInOutCubic(clamp01((s - 0.45) / (SINK - 0.45)));
+    const h0 = MEDIA_HEADER_AT * MEDIA_OUT_DUR, e = easeInOutCubic(clamp01((s - h0) / (SINK - h0)));
     drawHeader(A, lerp(HEADER_SCALE, 1, e), lerp(HEADER_Y * H, H / 2, e));
     return { mono: lerp(A.mono, B.mono, e), goo: 0, thresh: 0.5, morph: 0 };
   }
@@ -2251,9 +2309,9 @@ const TRANSITIONS = {
   'intro-cube>intro-circle':  { fn: trCubeCircle,  dur: () => 1.3,  formedAt: 1.3 },
   'intro-circle>title':       { fn: trCircleTitle, dur: (A, B) => (typeTimes(B), B.typeEnd + 0.15 + TYPE.settle + 0.05), formedAt: 0 },
   'title>year':               { fn: renderMorph,   dur: () => MORPH_DURATION, formedAt: MORPH.formed },
-  'year>media':               { fn: trYearMedia,   dur: () => 2.3, formedAt: 0 },
+  'year>media':               { fn: trYearMedia,   dur: () => 2.45, formedAt: 0 },
   'media>year':               { pick: (A, B) => A.year === B.year
-                                  ? { fn: (A, B, s, sp, T) => trYearMedia(B, A, 2.3 - s, 2.3 - sp, T), dur: () => 2.3,
+                                  ? { fn: (A, B, s, sp, T) => trYearMedia(B, A, 2.45 - s, 2.45 - sp, T), dur: () => 2.45,
                                       t0: (A, B, now, dur) => now + (dur - YEAR_SHADOW_GROW) * 1000 - 50 }
                                   : { fn: trMediaFly, dur: () => SINK + FLY.zoomIn[1] - FLY.retract + YEAR_SHADOW_GROW,
                                       formedAt: SINK + FLY.zoomIn[1] - FLY.retract } },
@@ -2277,7 +2335,7 @@ function syncVideos() {            // leaving a slide pauses its video
 function currentVideo() { const sc = !trans && scenes[cur]; return sc && sc.media && sc.media.isVideo ? mediaEl(sc.media) : null; }
 function toggleVideo() { const v = currentVideo(); if (!v) return false; if (v.paused) v.play().catch(() => {}); else v.pause(); return true; }
 function onSlideChange(from, to, now) {
-  syncVideos();
+  syncVideos(); releaseFar(to);
   if (editing) { trans = null; cur = to; scenes[to].t0 = now - 60000; lastStep = -1; selectThumb(to); return; }
   if (trans) { cur = trans.to; trans = null; }          // a new jump finishes any running transition
   const lo = Math.min(from, to), A = scenes[lo], B = scenes[lo + 1];
@@ -2291,6 +2349,31 @@ function onSlideChange(from, to, now) {
     cur = to; scenes[to].t0 = now;
   }
   lastStep = -1;
+}
+
+/* ---------- warm-up: everything a later slide needs is prepared in the quiet moments, not mid-transition ---------- */
+let warmQueue = [];
+function warmUp() {
+  const q = [];
+  const media = m => { if (!m) return; const el = mediaEl(m);         // start every download now; decoding runs off the main thread
+    if (el && !m.isVideo && el.decode) el.decode().catch(() => {}); if (m.poster && m.poster.decode) m.poster.decode().catch(() => {}); };
+  scenes.forEach(sc => {
+    media(sc.media); (sc.imgs || []).forEach(media); (sc.posters || []).forEach(p => media(p.m));
+    if (sc.kind === 'year') q.push(() => sc.letters.forEach(glyphImage));
+  });
+  q.push(() => [...new Set([...DEPTH_YEARS, ...TIMELINE])].forEach(tlLetters));
+  DEPTH_YEARS.forEach(y => q.push(() => yearSprite(y)));
+  warmQueue = q;
+  const idle = window.requestIdleCallback || (f => setTimeout(() => f({ timeRemaining: () => 8 }), 50));
+  const run = dl => {
+    let first = dl.didTimeout && !trans;                       // busy page: still do one task per call
+    while (warmQueue.length && (first || (!trans && dl.timeRemaining() > 4))) { first = false; try { warmQueue.shift()(); } catch (e) {} }
+    if (warmQueue.length) idle(run, { timeout: 120 });
+  };
+  idle(run, { timeout: 1500 });
+}
+function releaseFar(to) {                      // finished long shadows are kept only near the current slide (memory)
+  scenes.forEach((sc, i) => { if (Math.abs(i - to) > 3 && sc.shadowCache) { sc.shadowCache = null; sc.shadowKey = null; } });
 }
 
 /* ---------- one frame (stepped at ANIM_FPS) ---------- */
@@ -2533,6 +2616,7 @@ function setQuality(d) {
   const clear = sc => { if (!sc) return; sc.shadowCache = null; sc.sheets = null; (sc.letters || []).forEach(L => { L.img = null; L.face = null; }); };
   scenes.forEach(clear); Object.values(tlCache).forEach(ls => ls.forEach(L => { L.img = null; })); spriteCache = {};
   shapesWas = true; mediaWas = true; lastStep = -1;
+  if (scenes.length && typeof warmUp === 'function') { clearTimeout(setQuality.t); setQuality.t = setTimeout(warmUp, 300); }
 }
 function watchPerf(now) {
   if (perfLast) perfEma = perfEma * 0.95 + Math.min(100, now - perfLast) * 0.05;
@@ -2684,6 +2768,7 @@ Promise.all([f90.load(), f210.load(), fArch.load()]).then(fs => {
     if (scenes[cur]) scenes[cur].t0 = performance.now() - 60000;
     requestAnimationFrame(loop);
     buildEditor();
+    warmUp();
   });
   Reveal.addKeyBinding({ keyCode: 86, key: 'V', description: 'Play / pause video' }, () => toggleVideo());
   document.addEventListener('click', e => {
