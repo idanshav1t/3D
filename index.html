@@ -2094,11 +2094,12 @@ function trFly(A, B, s, sPrev, T) {
 const SINK = 1.1;                         // seconds for the picture to leave and the year to grow back
 function trMediaFly(A, B, s, sPrev, T) {
   if (s < SINK) {
-    const e = easeInOutCubic(clamp01(s / SINK));
-    const out = clamp01(s / SINK), drop = easeInCubic(out);                       // eases away and keeps going
-    const R = mediaRect();
+    // 1. the frame leaves the way it came in, reversed: caption first, then a short sink, fade and slight shrink
+    const out = clamp01(s / 0.6), fo = easeInOut(out);
+    drawMedia(A, 1 - fo, easeInCubic(out) * 0.07 * H, lerp(1, 0.96, easeInCubic(out)), 1 - easeInOut(clamp01(s / 0.35)), T);
+    // 2. only once the frame is mostly gone does the year grow back to the centre — they never cross
+    const e = easeInOutCubic(clamp01((s - 0.3) / (SINK - 0.3)));
     drawHeader(A, lerp(HEADER_SCALE, 1, e), lerp(HEADER_Y * H, H / 2, e));
-    drawMedia(A, 1, drop * (H - R.y + 0.06 * H), 1, 1 - easeInOut(out), T);
     return { mono: lerp(A.mono, B.mono, e), goo: 0, thresh: 0.5, morph: 0 };
   }
   return trFly(Object.assign({}, A, { mono: B.mono }), B, s - SINK + FLY.retract, sPrev - SINK + FLY.retract, T);
