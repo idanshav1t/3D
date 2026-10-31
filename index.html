@@ -2091,13 +2091,13 @@ function trFly(A, B, s, sPrev, T) {
   return Object.assign(out, { bgOff: camX * 0.18, bgZoom: 1 + (1 - z) * 0.75 });
 }
 // media → a different year: picture and caption sink away, the year grows back to full size, then the timeline flight
-const SINK = 1.1;                         // seconds for the picture to leave and the year to grow back
+const SINK = 1.2;                         // seconds for the picture to leave and the year to grow back
 function trMediaFly(A, B, s, sPrev, T) {
   if (s < SINK) {
-    // 1. the frame leaves the way it came in, reversed: caption first, then a short sink, fade and slight shrink
-    const out = clamp01(s / 0.6), fo = easeInOut(out);
-    drawMedia(A, 1 - fo, easeInCubic(out) * 0.07 * H, lerp(1, 0.96, easeInCubic(out)), 1 - easeInOut(clamp01(s / 0.35)), T);
-    // 2. only once the frame is mostly gone does the year grow back to the centre — they never cross
+    // 1. the frame (with its caption) slides down and out of the slide in one smooth move
+    const R = mediaRect(), out = easeInOutCubic(clamp01(s / 0.75));
+    drawMedia(A, 1, out * (H - R.y + 0.08 * H), 1, 1 - easeInOut(clamp01(s / 0.6)), T);
+    // 2. the year waits at the top, then grows to the centre once the frame is nearly gone — they never cross
     const e = easeInOutCubic(clamp01((s - 0.3) / (SINK - 0.3)));
     drawHeader(A, lerp(HEADER_SCALE, 1, e), lerp(HEADER_Y * H, H / 2, e));
     return { mono: lerp(A.mono, B.mono, e), goo: 0, thresh: 0.5, morph: 0 };
