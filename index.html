@@ -1193,10 +1193,10 @@ const SHADOW_MIN   = 0.18;          // shadow length at rest (share of SHADOW_DE
 const FACE_TOP     = "#fffdf6";     // letter face, top
 const FACE_BOTTOM  = "#efe2c8";     // letter face, bottom (subtle warm fade)
 const SOFT_SHADOW  = 0.28;          // soft shadow the letters cast on the background (0 = off)
-const WAVE_HEIGHT  = 0.011;         // title idle wave: how high each letter lifts (share of slide width)
-const WAVE_CYCLE   = 3.4;           // seconds between waves
-const WAVE_SWEEP   = 1.1;           // seconds for the wave to run across a line (right → left, both lines together)
-const WAVE_HOP     = 0.75;          // seconds for one letter to go up and back down
+const WAVE_HEIGHT  = 0.009;         // title idle wave: how high each letter lifts (share of slide width)
+const WAVE_CYCLE   = 3.8;           // seconds between waves
+const WAVE_SWEEP   = 1.4;           // seconds for the wave to run across a line (right → left, both lines together)
+const WAVE_HOP     = 1.0;           // seconds for one letter to go up and back down
 
 const TEXT_WIDTH = 0.555;           // title slides: both lines are this share of slide width
 const LINE_GAP   = 0.009;           // title slides: space between the two lines
@@ -1412,7 +1412,31 @@ const toneCol = f => { const v = Math.round(Math.max(0, Math.min(1, (f - 0.5) / 
 /* ---------- drawing a letter ----------
    (px,py) = visual centre, sc = scale, (vx,vy) = movement this frame (for the smear),
    slen = shadow length in px, mode: 'full' (shadow + face) | 'flat' (one colour) */
+// Browsers snap canvas text to whole pixels, so slowly moving letters step instead of gliding.
+// Fix: draw the letter (shadow + face) into its own small buffer at a whole-pixel spot, then place that
+// buffer at the exact (fractional) position — images move smoothly by fractions of a pixel.
 function drawLetter(c, L, px, py, sc, vx, vy, slen, mode, color) {
+  if (mode !== 'flat' && Math.hypot(vx, vy) <= 0.4 && c !== L.scrCtx) {
+    const m = c.getTransform();
+    if (m.b === 0 && m.c === 0 && m.a === m.d && m.a > 0 && slen * sc < 0.06 * W) {
+      const s = m.a, ang = (90 - SHADOW_ANGLE) * Math.PI / 180;
+      const ext = Math.max(L.w, L.cap) * sc;
+      const padX = Math.ceil((ext * 0.9 + Math.abs(Math.cos(ang)) * slen) * s) + 4;
+      const padY = Math.ceil((ext * 0.9 + Math.abs(Math.sin(ang)) * slen) * s) + 4;
+      const cw = padX * 2, ch = padY * 2;
+      if (!L.scr) { L.scr = document.createElement('canvas'); L.scrCtx = L.scr.getContext('2d'); }
+      if (L.scr.width < cw || L.scr.height < ch) { L.scr.width = Math.max(cw, L.scr.width); L.scr.height = Math.max(ch, L.scr.height); }
+      const x = L.scrCtx;
+      x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cw, ch);
+      x.setTransform(s, 0, 0, s, padX, padY);
+      drawLetter(x, L, 0, 0, sc, 0, 0, slen, mode, color);
+      const X = m.a * px + m.e, Y = m.d * py + m.f;
+      c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+      c.drawImage(L.scr, 0, 0, cw, ch, X - padX, Y - padY, cw, ch);
+      c.restore();
+      return;
+    }
+  }
   c.save();
   c.translate(px, py);
   const sp = Math.hypot(vx, vy), ext = Math.max(L.w, L.cap) * sc;
@@ -1908,14 +1932,11 @@ function typeTimes(B) {                 // when each letter is typed: reading or
   B.typeAt = out; B.typeEnd = t;
   return out;
 }
-function typeLetters(B, s, T) {
-  const at = typeTimes(B), ramp = easeInOut(clamp01((s - B.typeEnd - 0.15) / TYPE.settle));
-  const list = [];
+function typeLetters(B, s, T) {             // the idle (wave + shadows) runs the whole time; letters are typed into it
+  const at = typeTimes(B), list = [];
   B.letters.forEach((L, i) => {
     if (s < at[i]) return;
-    const restLen = SHADOW_MIN * SHADOW_DEPTH * W;
-    list.push({ L, px: L.cx, py: L.cy + floatDy(L, T) * ramp, sc: 1, vx: 0, vy: 0,
-                slen: lerp(restLen, idleShadow(B, L, T) * SHADOW_DEPTH * W, ramp) });
+    list.push({ L, px: L.cx, py: L.cy + floatDy(L, T), sc: 1, vx: 0, vy: 0, slen: idleShadow(B, L, T) * SHADOW_DEPTH * W });
   });
   if (!list.length) return;
   softShadow(list, list.length / B.letters.length);
@@ -2131,8 +2152,8 @@ function renderIdle(scene, T) {
   if (scene.kind === 'paper') { paperIdle(scene, T); return { mono: scene.base ? scene.base.mono : 0, goo: 0, thresh: 0.5, morph: 0 }; }
   if (scene.kind === 'year') { drawPosters(scene, (T - scene.t0) / 1000); drawYear(scene, (T - scene.t0) / 1000); return { mono: scene.mono, goo: 0, thresh: 0.5, morph: 0 }; }
   const list = scene.letters.map(L => {
-    const dy = floatDy(L, T), dyPrev = floatDy(L, T - SMEAR_DT);
-    return { L, px: L.cx, py: L.cy + dy, sc: 1, vx: 0, vy: dy - dyPrev, slen: idleShadow(scene, L, T) * SHADOW_DEPTH * W };
+    const dy = floatDy(L, T);
+    return { L, px: L.cx, py: L.cy + dy, sc: 1, vx: 0, vy: 0, slen: idleShadow(scene, L, T) * SHADOW_DEPTH * W };
   });
   softShadow(list, 1);
   for (const d of list) drawLetter(tctx, d.L, d.px, d.py, d.sc, d.vx, d.vy, d.slen, 'full');
