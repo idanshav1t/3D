@@ -1193,8 +1193,10 @@ const SHADOW_MIN   = 0.18;          // shadow length at rest (share of SHADOW_DE
 const FACE_TOP     = "#fffdf6";     // letter face, top
 const FACE_BOTTOM  = "#efe2c8";     // letter face, bottom (subtle warm fade)
 const SOFT_SHADOW  = 0.28;          // soft shadow the letters cast on the background (0 = off)
-const FLOAT        = 0.3;           // idle float of the letters (keep low so letters never touch)
-const FLOAT_SPEED  = 1.1;           // idle float speed
+const WAVE_HEIGHT  = 0.011;         // title idle wave: how high each letter lifts (share of slide width)
+const WAVE_CYCLE   = 3.4;           // seconds between waves
+const WAVE_SWEEP   = 1.1;           // seconds for the wave to run across a line (right → left, both lines together)
+const WAVE_HOP     = 0.75;          // seconds for one letter to go up and back down
 
 const TEXT_WIDTH = 0.555;           // title slides: both lines are this share of slide width
 const LINE_GAP   = 0.009;           // title slides: space between the two lines
@@ -1385,7 +1387,10 @@ function shadowCycle(L, tsec) {             // 0..1 shadow length factor: drop, 
   else               f = 0;
   return SHADOW_MIN + (1 - SHADOW_MIN) * Math.max(0, f);
 }
-const floatDy = (L, T) => FLOAT * 0.006 * W * Math.sin((T / 1000) * FLOAT_SPEED - L.fx * 2.4);
+function floatDy(L, T) {                      // a wave runs through the letters one by one: each rises and settles, then rest
+  const t = T / 1000 - L.fx * WAVE_SWEEP, p = ((t % WAVE_CYCLE) + WAVE_CYCLE) % WAVE_CYCLE;
+  return p < WAVE_HOP ? -WAVE_HEIGHT * W * (0.5 - 0.5 * Math.cos(2 * Math.PI * p / WAVE_HOP)) : 0;
+}
 function idleShadow(scene, L, T) {
   return scene.kind === 'title' ? shadowCycle(L, T / 1000) : shadowCycle(L, (T - scene.t0) / 1000);
 }
