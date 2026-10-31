@@ -1203,6 +1203,8 @@ const TEXT_WIDTH = 0.555;           // title slides: both lines are this share o
 const LINE_GAP   = 0.009;           // title slides: space between the two lines
 const YEAR_WIDTH = 0.5;             // year slides: width of the big number
 const YEAR_SHADOW_ANGLE = 45;       // year slides: long shadow direction (0 = down, 45 = down-right)
+const YEAR_SHADOW_REST  = 0.04;     // the little shadow a year keeps when its long shadow pulls back (share of width)
+const YEAR_SHADOW_BACK  = 1.0;      // seconds for the long shadow to pull back to that little shadow
 const YEAR_SHADOW_GROW  = 1.8;      // seconds for the shadow to extend all the way out of frame
 const YEAR_SHADOW_FAR   = "#000000"; // colour at the far end of the long shadow
 
@@ -1241,7 +1243,7 @@ const CAPTION_SIZE  = 0.036;        // caption size (share of slide width)
 const TIMELINE = [1968, 1971, 1972, 1976, 1982, 1986, 1988, 1991, 1993, 1995];
 const YEAR_SPACING = 0.75;          // distance between neighbouring marked years (share of slide width, at full zoom)
 const TIMELINE_ZOOM = 0.21;         // how far the camera pulls back (lower = more years visible)
-const FLY = { retract: 0.5, outEnd: 1.6, pan: [1.15, 2.25], zoomIn: [1.75, 2.9] };   // seconds
+const FLY = { retract: 1.0, outEnd: 2.1, pan: [1.65, 2.75], zoomIn: [2.25, 3.4] };   // seconds
 
 // year slides with pictures: the year moves to the right, the pictures sit on the left as prints
 const YEAR_SIDE_X     = 0.2;        // how far the year moves right (share of slide width)
@@ -1560,14 +1562,31 @@ function glyphImage(L) {                     // white silhouette of one letter, 
 function yearLayout(scene, el) {              // 0 = centred, 1 = moved aside for its pictures
   return scene.imgs && scene.imgs.length ? easeInOutCubic(clamp01(el / 0.75)) : 0;
 }
-function drawYear(scene, el, o = {}) {       // el = seconds since the number formed; o.shadowEl, o.cardOut (0..1)
-  const lay = yearLayout(scene, el), ys = lerp(1, YEAR_SIDE_SCALE, lay), ox = YEAR_SIDE_X * W * lay;
-  const PX = L => W / 2 + (L.cx - W / 2) * ys + ox, PY = L => H / 2 + (L.cy - H / 2) * ys;
+const SHADOW_BACK_EASE = cubicBezier(0.4, 0, 0.12, 1);   // pulling back: gentle start, long soft landing on the little shadow
+const yearShadowBack = s => 1 - SHADOW_BACK_EASE(s / YEAR_SHADOW_BACK);      // s = seconds into the pull-back → shadow amount
+// draw a year at scale sc, shifted ox, centred at height cy; g = shadow amount: 0 = little shadow, 1 = all the way out of frame
+function drawYearAt(scene, sc, ox, cy, g) {
+  const PX = L => W / 2 + (L.cx - W / 2) * sc + ox, PY = L => cy + (L.cy - H / 2) * sc;
+  if (!scene.noShadow) yearShadow(scene, PX, PY, sc, g, sc + ':' + ox + ':' + cy);
+  for (const L of scene.letters) drawLetter(tctx, L, PX(L), PY(L), sc, 0, 0, 0, 'face');
+}
+function yearShadow(scene, PX, PY, ys, g, key) {
   const ang = (90 - YEAR_SHADOW_ANGLE) * Math.PI / 180, dx = Math.cos(ang), dy = Math.sin(ang);
   const full = Math.hypot(W, H) * 1.05;      // long enough to leave the frame from anywhere
-  const len = full * easeInOut(clamp01((o.shadowEl != null ? o.shadowEl : el) / YEAR_SHADOW_GROW));
-  if (len > 0.5 && !scene.noShadow) {
-    const cacheOk = scene.shadowCache && scene.shadowKey === ys + ':' + ox;
+  // "reach": the length at which every letter's shadow has just left the frame. Past it nothing visible changes,
+  // so the shadow's motion is spread over the visible part only (no rushing through the last moment)
+  let reach = 0;
+  for (const L of scene.letters) {
+    const im = glyphImage(L), w = im.iw * ys, h = im.ih * ys, x0 = PX(L) - w / 2, y0 = PY(L) - h / 2;
+    const tx = dx > 1e-6 ? (W - x0) / dx : dx < -1e-6 ? (x0 + w) / -dx : 1e9;
+    const ty = dy > 1e-6 ? (H - y0) / dy : dy < -1e-6 ? (y0 + h) / -dy : 1e9;
+    reach = Math.max(reach, Math.min(tx, ty) + 4);
+  }
+  const rest = YEAR_SHADOW_REST * W * ys;
+  const len = g >= 1 ? full : lerp(rest, Math.max(rest, Math.min(reach, full)), clamp01(g));
+  if (len <= 0.5) return;
+  {
+    const cacheOk = scene.shadowCache && scene.shadowKey === key;
     if (len >= full - 0.5 && cacheOk) {
       tctx.save(); tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.drawImage(scene.shadowCache, 0, 0); tctx.restore();
     } else {
@@ -1609,11 +1628,15 @@ function drawYear(scene, el, o = {}) {       // el = seconds since the number fo
       tctx.restore();
       if (len >= full - 0.5) {               // fully extended: keep it, it never changes again
         const c = document.createElement('canvas'); c.width = bcv.width; c.height = bcv.height;
-        c.getContext('2d').drawImage(bcv, 0, 0); scene.shadowCache = c; scene.shadowKey = ys + ':' + ox;
+        c.getContext('2d').drawImage(bcv, 0, 0); scene.shadowCache = c; scene.shadowKey = key;
       }
     }
   }
-  for (const L of scene.letters) drawLetter(tctx, L, PX(L), PY(L), ys, 0, 0, 0, 'face');
+}
+function drawYear(scene, el, o = {}) {       // el = seconds since the number formed; o.shadow (0..1), o.cardOut (0..1)
+  const lay = yearLayout(scene, el), ys = lerp(1, YEAR_SIDE_SCALE, lay), ox = YEAR_SIDE_X * W * lay;
+  const g = o.shadow != null ? o.shadow : easeInOut(clamp01(el / YEAR_SHADOW_GROW));
+  drawYearAt(scene, ys, ox, H / 2, g);
   if (scene.imgs && scene.imgs.length) drawCards(scene, el, lay, o.cardOut || 0);
 }
 const yearSide = scene => { const lay = scene.imgs && scene.imgs.length ? 1 : 0; return { sc: lerp(1, YEAR_SIDE_SCALE, lay), ox: YEAR_SIDE_X * W * lay }; };
@@ -1728,7 +1751,7 @@ let spriteCache = {};
 function yearSprite(y) {                    // the year as a solid block: face + extrusion, rendered once
   const key = y + ':' + W + ':' + DPR;
   if (spriteCache[key]) return spriteCache[key];
-  const letters = tlLetters(y), b = boxOf(letters), E = 0.04 * W, pad = 0.03 * W;
+  const letters = tlLetters(y), b = boxOf(letters), E = YEAR_SHADOW_REST * W, pad = 0.03 * W;
   const ox = b.x0 - pad, oy = b.y0 - pad, w = b.x1 - b.x0 + pad * 2 + E, h = b.y1 - b.y0 + pad * 2 + E;
   const mkc = () => { const c = document.createElement('canvas'); c.width = Math.ceil(w * DPR); c.height = Math.ceil(h * DPR);
                       const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, -ox * DPR, -oy * DPR); return [c, g]; };
@@ -1736,8 +1759,9 @@ function yearSprite(y) {                    // the year as a solid block: face +
   for (const L of letters) drawLetter(fg, L, L.cx, L.cy, 1, 0, 0, 0, 'face');
   const steps = Math.ceil(E * DPR / 1.2), dxy = E / steps / Math.SQRT2;
   for (let i = steps; i >= 1; i--) for (const L of letters) drawLetter(eg, L, L.cx + dxy * i, L.cy + dxy * i, 1, 0, 0, 0, 'flat', '#000');
-  const gr = eg.createLinearGradient(b.x0, b.y0, b.x0 + E, b.y0 + E);
-  gr.addColorStop(0, SHADOW_NEAR); gr.addColorStop(1, SHADOW_FAR);
+  const ang = (90 - YEAR_SHADOW_ANGLE) * Math.PI / 180, gl_ = Math.hypot(W, H) * 1.05 + (b.x1 - b.x0);
+  const gr = eg.createLinearGradient(b.x0, b.y0, b.x0 + Math.cos(ang) * gl_, b.y0 + Math.sin(ang) * gl_);   // same colours as the long shadow
+  gr.addColorStop(0, SHADOW_NEAR); gr.addColorStop(0.35, SHADOW_FAR); gr.addColorStop(1, YEAR_SHADOW_FAR);
   eg.globalCompositeOperation = 'source-in'; eg.setTransform(1, 0, 0, 1, 0, 0); eg.fillStyle = gr; eg.fillRect(0, 0, ec.width, ec.height);
   return spriteCache[key] = { face: fc, ext: ec, ox, oy, w, h };
 }
@@ -2130,8 +2154,8 @@ function drawMedia(scene, a, lift, sc, capA, T, vy = 0) {
     tctx.restore();
   }
 }
-function drawHeader(scene, sc, cy, ox = 0) {  // the year's letters, scaled about the centre and moved to cy
-  for (const L of scene.letters) drawLetter(tctx, L, W / 2 + (L.cx - W / 2) * sc + ox, cy + (L.cy - H / 2) * sc, sc, 0, 0, 0, 'face');
+function drawHeader(scene, sc, cy, ox = 0) {  // the year, scaled about the centre and moved to cy, with its little shadow
+  drawYearAt(scene, sc, ox, cy, 0);
 }
 function mediaIdle(scene, T) {
   drawHeader(scene, HEADER_SCALE, HEADER_Y * H);
@@ -2141,12 +2165,9 @@ function mediaIdle(scene, T) {
 const MEDIA_IN_AT = 1.0;                      // year → media: when the frame starts rising (s)
 function trYearMedia(A, B, s, sPrev, T) {
   const side = yearSide(A);
-  if (s < 0.6) drawYear(A, 99, { shadowEl: YEAR_SHADOW_GROW * (1 - easeInOut(s / 0.6)), cardOut: s / 0.75 });
-  else {
-    drawCards(A, 99, 1, (s) / 0.75);
-    const m = easeInOutCubic(clamp01((s - 0.6) / 0.85));
-    drawHeader(B, lerp(side.sc, HEADER_SCALE, m), lerp(H / 2, HEADER_Y * H, m), lerp(side.ox, 0, m));
-  }
+  const m = easeInOutCubic(clamp01((s - 0.55) / 0.95));                    // the year glides up as the shadow lands
+  drawYearAt(A, lerp(side.sc, HEADER_SCALE, m), lerp(side.ox, 0, m), lerp(H / 2, HEADER_Y * H, m), s < YEAR_SHADOW_BACK ? yearShadowBack(s) : 0);
+  if (A.imgs && A.imgs.length) drawCards(A, 99, 1, s / 0.75);
   if (s > MEDIA_IN_AT) {                       // the frame rises in from below the slide and settles softly
     const D = mediaTravel(), f = MEDIA_IN((s - MEDIA_IN_AT) / MEDIA_IN_DUR), fp = MEDIA_IN((sPrev - MEDIA_IN_AT) / MEDIA_IN_DUR);
     const capA = easeInOut(clamp01((s - MEDIA_IN_AT - 0.55) / 0.6));
@@ -2185,15 +2206,15 @@ function drawTimeline(z, camX, amt, extra) {
   for (const y of years) {
     const sx = toSx(tlX(y));
     if (Math.abs(sx - W / 2) > W / 2 + YEAR_WIDTH * W * z) continue;
-    for (const L of tlLetters(y))
-      drawLetter(tctx, L, sx + (L.cx - W / 2) * z, H / 2 + (L.cy - H / 2) * z, z, 0, 0, SHADOW_DEPTH * W * 0.9 * z * amt, 'full');
+    const sp = yearSprite(y);                    // the year with its little 45° shadow, same as everywhere else
+    drawSprite(sp, sp.ext, sx, H / 2, z, 1, 0, 0); drawSprite(sp, sp.face, sx, H / 2, z, 1, 0, 0);
   }
 }
 // year → year (different years): long shadow in, pull back over the timeline, glide, push into the next year, its shadow grows
 function trFly(A, B, s, sPrev, T) {
   const yA = +A.year, yB = +B.year, land = FLY.zoomIn[1];
   const out = { mono: lerp(A.mono, B.mono, smooth(FLY.retract, land, s)), goo: 0, thresh: 0.5, morph: 0 };
-  if (s < FLY.retract) { drawYear(A, YEAR_SHADOW_GROW * (1 - easeInOut(s / FLY.retract))); return out; }
+  if (s < FLY.retract) { drawYear(A, 0, { shadow: yearShadowBack(s * YEAR_SHADOW_BACK / FLY.retract) }); return out; }
   if (s >= land) { drawYear(B, s - land); return out; }
   const outAmt = easeInOut(clamp01((s - FLY.retract) / (FLY.outEnd - FLY.retract)));
   const inAmt = easeInOut(clamp01((s - FLY.zoomIn[0]) / (FLY.zoomIn[1] - FLY.zoomIn[0])));
@@ -2390,7 +2411,7 @@ function warmUp() {
     if (sc.kind === 'year') q.push(() => sc.letters.forEach(glyphImage));
   });
   q.push(() => [...new Set([...DEPTH_YEARS, ...TIMELINE])].forEach(tlLetters));
-  DEPTH_YEARS.forEach(y => q.push(() => yearSprite(y)));
+  [...new Set([...DEPTH_YEARS, ...TIMELINE])].forEach(y => q.push(() => yearSprite(y)));
   warmQueue = q;
   const idle = window.requestIdleCallback || (f => setTimeout(() => f({ timeRemaining: () => 8 }), 50));
   const run = dl => {
