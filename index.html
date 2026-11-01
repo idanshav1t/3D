@@ -2857,7 +2857,8 @@ function present(i) {
   const el = document.documentElement;
   try { const r = el.requestFullscreen || el.webkitRequestFullscreen; if (r && !document.fullscreenElement) { const p = r.call(el); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
   placeFilm();
-  Reveal.configure({ keyboard: true, touch: true });
+  Reveal.configure({ keyboard: false, touch: true });
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   if (Reveal.getIndices().h !== i) Reveal.slide(i, 0, -1); else { trans = null; cur = i; scenes[i].t0 = performance.now(); lastStep = -1; }
 }
 function backToEditor() {
@@ -2875,13 +2876,30 @@ btnSlides.onclick = () => {
   btnSlides.textContent = open ? 'Hide' : 'Slides';
   placeFilm(); if (open) { selectThumb(cur); thumbsWanted = true; renderThumbs(); }
 };
+// Keys are handled here, first, for both modes — not left to reveal.js, whose handling depends on where the
+// keyboard focus happens to be (on a PC, a clicked button keeps the focus and Space would press it again).
+const KEYS_NEXT = ['ArrowRight', 'ArrowDown', 'PageDown', 'Enter', 'n', 'N'], KEYS_PREV = ['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'p', 'P'];
+const isSpace = e => e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space';
 document.addEventListener('keydown', e => {
   if (e.key === 'F5') { e.preventDefault(); present(e.shiftKey ? cur : 0); return; }
-  if (!editing) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); backToEditor(); } return; }
-  if (['ArrowDown', 'ArrowRight', 'PageDown'].includes(e.key)) { e.preventDefault(); goEdit(cur + 1); }
-  else if (['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); goEdit(cur - 1); }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target; if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) return;
+  const next = isSpace(e) || KEYS_NEXT.includes(e.key), prev = KEYS_PREV.includes(e.key);
+  if (!editing) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); backToEditor(); return; }
+    if (next || prev || /^(Home|End|v|V|s|S)$/.test(e.key)) { e.preventDefault(); e.stopImmediatePropagation(); }
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    if (e.repeat) return;                                         // a held key doesn't race through the slides
+    if (next) Reveal.next(); else if (prev) Reveal.prev();
+    else if (e.key === 'Home') Reveal.slide(0); else if (e.key === 'End') Reveal.slide(sections().length - 1);
+    else if (e.key === 'v' || e.key === 'V') toggleVideo();
+    else if (e.key === 's' || e.key === 'S') { const n = Reveal.getPlugin && Reveal.getPlugin('notes'); if (n && n.open) n.open(); }
+    return;
+  }
+  if (next && e.key !== 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); goEdit(cur + 1); }
+  else if (prev) { e.preventDefault(); e.stopImmediatePropagation(); goEdit(cur - 1); }
   else if (e.key === 'Home') goEdit(0); else if (e.key === 'End') goEdit(sections().length - 1);
-  else if (e.key === 'Enter') present(cur);
+  else if (e.key === 'Enter') { e.preventDefault(); present(cur); }
 }, true);
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) backToEditor(); });
 window.addEventListener('resize', () => { placeFilm(); thumbs.forEach(t => t.done = false); clearTimeout(window.__thr); window.__thr = setTimeout(renderThumbs, 300); });
@@ -2910,11 +2928,14 @@ Promise.all([f90.load(), f210.load(), fArch.load()]).then(fs => {
     buildEditor();
     warmUp();
   });
-  Reveal.addKeyBinding({ keyCode: 86, key: 'V', description: 'Play / pause video' }, () => toggleVideo());
   document.addEventListener('click', e => {
-    const sc = !trans && scenes[cur]; if (!sc || sc.kind !== 'media') return;
+    if (e.button !== 0 || (e.target && e.target.closest && e.target.closest('button, a, input, #thumbs, .thumbs, .panel'))) return;
+    const sc = scenes[cur];
     const r = film.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height, R = mediaRect();
-    if (x > R.x && x < R.x + R.w && y > R.y && y < R.y + R.h) toggleVideo();
+    const onFrame = !trans && sc && sc.kind === 'media' && x > R.x && x < R.x + R.w && y > R.y && y < R.y + R.h;
+    if (editing) { if (onFrame) toggleVideo(); return; }
+    // presenting: a click advances, like PowerPoint; on a video that has already started, it pauses / resumes instead
+    if (onFrame && currentVideo() && Reveal.getIndices().f >= 0) toggleVideo(); else Reveal.next();
   });
   Reveal.on('fragmentshown', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { if (v.ended) v.currentTime = 0; v.play().catch(() => {}); } } });
   Reveal.on('fragmenthidden', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { v.pause(); v.currentTime = 0; } } });
