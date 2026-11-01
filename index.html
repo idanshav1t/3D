@@ -2476,12 +2476,24 @@ function primeVideo(m) {
   if (!m || !m.isVideo || m.started || m.priming) return;
   const v = mediaEl(m); if (!v) return;
   m.priming = true; v.muted = true;
-  const done = () => { m.priming = false; if (m.started) { v.muted = false; return; } v.pause(); try { v.currentTime = 0; } catch (e) {} v.muted = false; };
-  const pr = v.play(); if (pr && pr.then) pr.then(() => setTimeout(done, 120), done); else setTimeout(done, 120);
+  let tm = 0;
+  const stop = () => {                                      // runs once: as soon as it really plays, or at 0.4 s at the latest
+    if (!m.priming) return; m.priming = false; clearTimeout(tm); v.removeEventListener('playing', onPlaying);
+    if (m.started) { v.muted = false; return; }
+    v.pause(); try { v.currentTime = 0; } catch (e) {} v.muted = false;
+  };
+  const onPlaying = () => setTimeout(stop, 60);
+  v.addEventListener('playing', onPlaying);
+  tm = setTimeout(stop, 400);                               // a warm-up never keeps running, whatever the browser reports
+  const pr = v.play(); if (pr && pr.catch) pr.catch(stop);
 }
 function primeAround(i) { [i, i + 1].forEach(j => { const sc = scenes[j]; if (sc && sc.kind === 'media') primeVideo(sc.media); }); }
 setInterval(() => { if (!editing && !trans) primeAround(cur); }, 6000);
-function startVideo(v, m) { if (m) { m.started = true; m.priming = false; } v.muted = false; v.volume = 1; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+function startVideo(v, m, fresh) {                         // fresh = the presenter starts it now → always from the beginning
+  if (m) { m.started = true; m.priming = false; }
+  if (fresh && (v.currentTime > 0.05 || v.ended)) { try { v.currentTime = 0; } catch (e) {} }
+  v.muted = false; v.volume = 1; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
+}
 
 function syncVideos() {            // leaving a slide pauses its video
   scenes.forEach(sc => { const m = sc.media; if (m && m.isVideo && m.el) { m.el.pause(); m.started = false; m.priming = false; } });
@@ -2998,7 +3010,7 @@ Promise.all([f90.load(), f210.load(), fArch.load()]).then(fs => {
     if (onFrame && v && Reveal.getIndices().f >= 0 && v.paused && !v.ended) { startVideo(v, scenes[cur].media); return; }   // paused with V → click resumes
     Reveal.next();
   });
-  Reveal.on('fragmentshown', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { if (v.ended) v.currentTime = 0; startVideo(v, scenes[cur].media); } } });
+  Reveal.on('fragmentshown', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) startVideo(v, scenes[cur].media, true); } });
   Reveal.on('fragmenthidden', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { v.pause(); v.currentTime = 0; const m = scenes[cur].media; if (m) m.started = false; } } });
   Reveal.on('slidechanged', e => onSlideChange(Reveal.getIndices(e.previousSlide).h, e.indexh, Math.floor(performance.now() / FRAME) * FRAME));
 });
