@@ -2121,7 +2121,7 @@ function mediaEl(m) {
     m.el.crossOrigin = 'anonymous';                         // lets the film effect process media from another site
     m.el.addEventListener('error', () => { m.failed = true; loadLocalMedia(m.src); });
   }
-  if (m.isVideo) Object.assign(m.el, { playsInline: true, preload: 'auto', loop: false });
+  if (m.isVideo) { Object.assign(m.el, { playsInline: true, preload: 'auto', loop: false, muted: false, defaultMuted: false, volume: 1 }); m.el.removeAttribute('muted'); }   // sound always on
   if (m.isVideo && /\.webm$/i.test(url) && MEDIA_MP4[m.src])            // WebM refused → quietly switch to the MP4
     m.el.addEventListener('error', () => { if (m.el && !/\.mp4$/i.test(m.el.src)) m.el.src = MEDIA_MP4[m.src]; });
   m.el.src = url;
@@ -2464,7 +2464,7 @@ function syncVideos() {            // leaving a slide pauses its video
   scenes.forEach(sc => { const m = sc.media; if (m && m.isVideo && m.el) m.el.pause(); });
 }
 function currentVideo() { const sc = !trans && scenes[cur]; return sc && sc.media && sc.media.isVideo ? mediaEl(sc.media) : null; }
-function toggleVideo() { const v = currentVideo(); if (!v) return false; if (v.paused) v.play().catch(() => {}); else v.pause(); return true; }
+function toggleVideo() { const v = currentVideo(); if (!v) return false; if (v.paused) { v.muted = false; v.play().catch(() => {}); } else v.pause(); return true; }
 function onSlideChange(from, to, now) {
   syncVideos(); releaseFar(to);
   if (editing) { trans = null; cur = to; scenes[to].t0 = now - 60000; lastStep = -1; selectThumb(to); return; }
@@ -2934,10 +2934,14 @@ Promise.all([f90.load(), f210.load(), fArch.load()]).then(fs => {
     const r = film.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height, R = mediaRect();
     const onFrame = !trans && sc && sc.kind === 'media' && x > R.x && x < R.x + R.w && y > R.y && y < R.y + R.h;
     if (editing) { if (onFrame) toggleVideo(); return; }
-    // presenting: a click advances, like PowerPoint; on a video that has already started, it pauses / resumes instead
-    if (onFrame && currentVideo() && Reveal.getIndices().f >= 0) toggleVideo(); else Reveal.next();
+    // presenting: a click advances, like PowerPoint. A video that is playing is never paused or restarted by a click
+    // (while it plays, clicks anywhere do nothing; keys still move on; V pauses if you need it)
+    const v = currentVideo();
+    if (v && Reveal.getIndices().f >= 0 && !v.paused && !v.ended) return;   // a playing video is never cut short by a click
+    if (onFrame && v && Reveal.getIndices().f >= 0 && v.paused && !v.ended) { v.muted = false; v.play().catch(() => {}); return; }   // paused with V → click resumes
+    Reveal.next();
   });
-  Reveal.on('fragmentshown', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { if (v.ended) v.currentTime = 0; v.play().catch(() => {}); } } });
+  Reveal.on('fragmentshown', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { if (v.ended) v.currentTime = 0; v.muted = false; v.volume = 1; v.play().catch(() => {}); } } });
   Reveal.on('fragmenthidden', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { v.pause(); v.currentTime = 0; } } });
   Reveal.on('slidechanged', e => onSlideChange(Reveal.getIndices(e.previousSlide).h, e.indexh, Math.floor(performance.now() / FRAME) * FRAME));
 });
