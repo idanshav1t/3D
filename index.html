@@ -2128,7 +2128,7 @@ function mediaEl(m) {
   return m.el;
 }
 const posterOk = m => m && m.poster && m.poster.complete && m.poster.naturalWidth > 0;
-const showPoster = m => posterOk(m) && (!m.el || m.el.readyState < 2 || (m.el.paused && m.el.currentTime < 0.05));
+const showPoster = m => posterOk(m) && (!m.el || m.el.readyState < 2 || !m.started || (m.el.paused && m.el.currentTime < 0.05));
 const mediaReady = m => (m && m.isVideo && posterOk(m)) || (!!mediaEl(m) && (m.isVideo ? m.el.readyState >= 2 : m.el.complete && m.el.naturalWidth > 0));
 function mediaRect() { const w = MEDIA_WIDTH * W, h = w * 9 / 16; return { x: W / 2 - w / 2, y: MEDIA_Y * H - h / 2, w, h }; }
 function roundRectPath(c, x, y, w, h, r) {
@@ -2460,13 +2460,27 @@ const TRANSITIONS = {
 };
 
 /* ---------- navigation ---------- */
+// Browsers put loaded-but-unused videos to sleep; waking one on play takes seconds (frozen first frame, no sound).
+// So the video of the slide being shown (and the one arriving) gets a silent play-and-pause as it arrives, and again
+// every few seconds while it waits — when the presenter starts it, it starts at once. Nothing of this is seen or heard.
+function primeVideo(m) {
+  if (!m || !m.isVideo || m.started || m.priming) return;
+  const v = mediaEl(m); if (!v) return;
+  m.priming = true; v.muted = true;
+  const done = () => { m.priming = false; if (m.started) { v.muted = false; return; } v.pause(); try { v.currentTime = 0; } catch (e) {} v.muted = false; };
+  const pr = v.play(); if (pr && pr.then) pr.then(() => setTimeout(done, 120), done); else setTimeout(done, 120);
+}
+function primeAround(i) { [i, i + 1].forEach(j => { const sc = scenes[j]; if (sc && sc.kind === 'media') primeVideo(sc.media); }); }
+setInterval(() => { if (!editing && !trans) primeAround(cur); }, 6000);
+function startVideo(v, m) { if (m) { m.started = true; m.priming = false; } v.muted = false; v.volume = 1; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+
 function syncVideos() {            // leaving a slide pauses its video
-  scenes.forEach(sc => { const m = sc.media; if (m && m.isVideo && m.el) m.el.pause(); });
+  scenes.forEach(sc => { const m = sc.media; if (m && m.isVideo && m.el) { m.el.pause(); m.started = false; m.priming = false; } });
 }
 function currentVideo() { const sc = !trans && scenes[cur]; return sc && sc.media && sc.media.isVideo ? mediaEl(sc.media) : null; }
-function toggleVideo() { const v = currentVideo(); if (!v) return false; if (v.paused) { v.muted = false; v.play().catch(() => {}); } else v.pause(); return true; }
+function toggleVideo() { const v = currentVideo(); if (!v) return false; if (v.paused) startVideo(v, scenes[cur].media); else v.pause(); return true; }
 function onSlideChange(from, to, now) {
-  syncVideos(); releaseFar(to);
+  syncVideos(); releaseFar(to); if (!editing) primeAround(to);
   if (editing) { trans = null; cur = to; scenes[to].t0 = now - 60000; lastStep = -1; selectThumb(to); return; }
   if (trans) { cur = trans.to; trans = null; }          // a new jump finishes any running transition
   const lo = Math.min(from, to), A = scenes[lo], B = scenes[lo + 1];
@@ -2937,12 +2951,12 @@ Promise.all([f90.load(), f210.load(), fArch.load()]).then(fs => {
     // presenting: a click advances, like PowerPoint. A video that is playing is never paused or restarted by a click
     // (while it plays, clicks anywhere do nothing; keys still move on; V pauses if you need it)
     const v = currentVideo();
-    if (v && Reveal.getIndices().f >= 0 && !v.paused && !v.ended) return;   // a playing video is never cut short by a click
-    if (onFrame && v && Reveal.getIndices().f >= 0 && v.paused && !v.ended) { v.muted = false; v.play().catch(() => {}); return; }   // paused with V → click resumes
+    if (v && Reveal.getIndices().f >= 0 && !v.paused && !v.ended && scenes[cur].media.started) return;   // a playing video is never cut short by a click
+    if (onFrame && v && Reveal.getIndices().f >= 0 && v.paused && !v.ended) { startVideo(v, scenes[cur].media); return; }   // paused with V → click resumes
     Reveal.next();
   });
-  Reveal.on('fragmentshown', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { if (v.ended) v.currentTime = 0; v.muted = false; v.volume = 1; v.play().catch(() => {}); } } });
-  Reveal.on('fragmenthidden', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { v.pause(); v.currentTime = 0; } } });
+  Reveal.on('fragmentshown', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { if (v.ended) v.currentTime = 0; startVideo(v, scenes[cur].media); } } });
+  Reveal.on('fragmenthidden', e => { if (e.fragment.classList.contains('play-video')) { const v = currentVideo(); if (v) { v.pause(); v.currentTime = 0; const m = scenes[cur].media; if (m) m.started = false; } } });
   Reveal.on('slidechanged', e => onSlideChange(Reveal.getIndices(e.previousSlide).h, e.indexh, Math.floor(performance.now() / FRAME) * FRAME));
 });
 </script>
