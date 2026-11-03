@@ -1243,6 +1243,16 @@ function loadLocalMedia(n, file) {            // media/<name>.js next to this fi
 }
 // a video's first-frame image (shown until it plays): a plain file online; packed like the rest in the offline folder
 const POSTER_WAIT = {};
+// online: a picture or video that fails to arrive (server hiccup) is asked for again, up to 4 times with growing pauses
+function retryOnError(el, isVideo, current) {
+  let tries = 0;
+  el.addEventListener('error', () => {
+    if (current && current() !== el) return;
+    if (isVideo && !(el.error && el.error.code === 2)) return;   // videos: only network failures (format problems have their own fallback)
+    if (++tries > 4) return;
+    setTimeout(() => { if (current && current() !== el) return; el.src = el.src.split('?')[0] + '?retry=' + tries; if (isVideo) el.load(); }, 800 * tries);
+  });
+}
 function posterURL(src) { return MEDIA_BASE ? MEDIA_BASE.replace(/\/$/, '') + '/posters/' + src + '.jpg' : MEDIA_BLOBS['poster:' + src]; }
 const MEDIA_MP4 = {};                         // the always-playable version, if the WebM fails
 if (MEDIA_BASE) Object.keys(MEDIA_LIST).forEach(n => {
@@ -2142,7 +2152,7 @@ const easeInOutCubic = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3)
 function loadMedia(src) {                    // src = a name in the media folder, or a URL; created once its file has arrived
   const type = MEDIA_LIST[src] || (/\.(mp4|webm|mov)(\?|$)/i.test(src) ? 'video/mp4' : 'image/*');
   const m = { src, el: null, isVideo: type.startsWith('video'), manual: type.startsWith('video'), poster: null };
-  if (m.isVideo && MEDIA_LIST[src]) { m.poster = new Image(); const u = posterURL(src); if (u) m.poster.src = u; else (POSTER_WAIT[src] = POSTER_WAIT[src] || []).push(m.poster); }
+  if (m.isVideo && MEDIA_LIST[src]) { m.poster = new Image(); const u = posterURL(src); if (u) { if (MEDIA_BASE) retryOnError(m.poster, false); m.poster.src = u; } else (POSTER_WAIT[src] = POSTER_WAIT[src] || []).push(m.poster); }
   return m;
 }
 function mediaEl(m) {
@@ -2162,6 +2172,7 @@ function mediaEl(m) {
     m.el.addEventListener('error', () => { if (m.el && !/\.mp4$/i.test(m.el.src)) m.el.src = MEDIA_MP4[m.src]; });
   if (m.isVideo && !MEDIA_BASE && MEDIA_ALT[m.src])                     // offline folder: packed WebM refused → its packed MP4
     m.el.addEventListener('error', () => wantMp4(m.src));
+  if (MEDIA_BASE && !remote) retryOnError(m.el, m.isVideo, () => m.el);   // a server hiccup doesn't leave a hole for the whole talk
   m.el.src = url;
   return m.el;
 }
