@@ -1207,20 +1207,52 @@ const MEDIA_ALT  = {"1972": ".webm", "1976": ".webm", "1982-startrek": ".webm", 
 const WEBM_OK = (() => { try { return document.createElement('video').canPlayType('video/webm; codecs="vp9, opus"') === 'probably'; } catch (e) { return false; } })();
 const MEDIA_URLS = {}, MEDIA_BLOBS = {}, MEDIA_FALLBACK = {};
 function mediaArrived(name, type, b64) {      // called by each media/<name>.js
-  const bin = atob(b64), buf = new Uint8Array(bin.length);
+  // (a data: address would be simpler, but WebKit crashes on ones this large — so a plain loop, which works everywhere)
+  const bin = atob(b64); b64 = null;
+  const buf = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-  MEDIA_BLOBS[name] = URL.createObjectURL(new Blob([buf], { type }));
+  mediaReadyBlob(name, new Blob([buf], { type }));
 }
-function loadLocalMedia(n) {                  // media/<name>.js next to this file (offline folder, or when the web copy is blocked)
+function mediaReadyBlob(name, blob) {
+  MEDIA_BLOBS[name] = URL.createObjectURL(blob);
+  if (name.startsWith('poster:')) (POSTER_WAIT[name.slice(7)] || []).forEach(img => { img.src = MEDIA_BLOBS[name]; });
+  if (name.startsWith('mp4:')) useMp4(name.slice(4));
+}
+// offline folder: each video is packed as WebM (small) plus an MP4 backup that every browser plays (Safari included).
+// The MP4 is used from the start where WebM isn't supported, and swapped in automatically if a WebM ever fails.
+const MP4_WANT = {};
+function wantMp4(n) {
+  if (MP4_WANT[n]) return; MP4_WANT[n] = 1;
+  if (MEDIA_BLOBS['mp4:' + n]) useMp4(n); else loadLocalMedia('mp4:' + n, '_mp4_' + n);
+}
+function useMp4(n) {
+  if (!MP4_WANT[n] || !MEDIA_BLOBS['mp4:' + n]) return;
+  const prevUrl = MEDIA_BLOBS[n]; MEDIA_BLOBS[n] = MEDIA_BLOBS['mp4:' + n];
+  if (prevUrl && prevUrl !== MEDIA_BLOBS[n]) setTimeout(() => { try { URL.revokeObjectURL(prevUrl); } catch (e) {} }, 2000);
+  (typeof scenes !== 'undefined' ? scenes : []).forEach(sc => { const m = sc.media;
+    if (m && m.src === n && m.el) {
+      const t = m.el, wasStarted = m.started; t.src = MEDIA_BLOBS[n]; t.load(); m.priming = false; m.primeId = (m.primeId || 0) + 1;
+      if (wasStarted) { t.muted = false; const pr = t.play(); if (pr && pr.catch) pr.catch(() => {}); }   // keep playing what was started
+    } });
+}
+function loadLocalMedia(n, file) {            // media/<name>.js next to this file (offline folder, or when the web copy is blocked)
   if (MEDIA_FALLBACK[n]) return; MEDIA_FALLBACK[n] = 1;
-  const sc = document.createElement('script'); sc.src = 'media/' + n + '.js'; sc.async = true; document.head.appendChild(sc);
+  const sc = document.createElement('script'); sc.src = 'media/' + (file || n) + '.js'; sc.async = true;
+  sc.onload = () => sc.remove();               // the packed text isn't needed once unpacked
+  document.head.appendChild(sc);
 }
+// a video's first-frame image (shown until it plays): a plain file online; packed like the rest in the offline folder
+const POSTER_WAIT = {};
+function posterURL(src) { return MEDIA_BASE ? MEDIA_BASE.replace(/\/$/, '') + '/posters/' + src + '.jpg' : MEDIA_BLOBS['poster:' + src]; }
 const MEDIA_MP4 = {};                         // the always-playable version, if the WebM fails
 if (MEDIA_BASE) Object.keys(MEDIA_LIST).forEach(n => {
   const b = MEDIA_BASE.replace(/\/$/, '') + '/' + n;
   MEDIA_URLS[n] = b + (WEBM_OK && MEDIA_ALT[n] ? MEDIA_ALT[n] : MEDIA_EXT[n]); MEDIA_MP4[n] = b + MEDIA_EXT[n];
 });
-else Object.keys(MEDIA_LIST).forEach(loadLocalMedia);
+else {
+  Object.keys(MEDIA_LIST).forEach(n => { if (MEDIA_ALT[n] && !WEBM_OK) wantMp4(n); else loadLocalMedia(n); });
+  Object.keys(MEDIA_LIST).forEach(n => { if (MEDIA_LIST[n].startsWith('video')) loadLocalMedia('poster:' + n, '_poster_' + n); });
+}
 </script>
 <script>
 /* ===================== DECK SETTINGS (apply to every slide) ===================== */
@@ -2110,7 +2142,7 @@ const easeInOutCubic = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3)
 function loadMedia(src) {                    // src = a name in the media folder, or a URL; created once its file has arrived
   const type = MEDIA_LIST[src] || (/\.(mp4|webm|mov)(\?|$)/i.test(src) ? 'video/mp4' : 'image/*');
   const m = { src, el: null, isVideo: type.startsWith('video'), manual: type.startsWith('video'), poster: null };
-  if (m.isVideo && MEDIA_LIST[src]) { m.poster = new Image(); m.poster.src = (MEDIA_BASE || 'media').replace(/\/$/, '') + '/posters/' + src + '.jpg'; }
+  if (m.isVideo && MEDIA_LIST[src]) { m.poster = new Image(); const u = posterURL(src); if (u) m.poster.src = u; else (POSTER_WAIT[src] = POSTER_WAIT[src] || []).push(m.poster); }
   return m;
 }
 function mediaEl(m) {
@@ -2128,6 +2160,8 @@ function mediaEl(m) {
   if (m.isVideo) { Object.assign(m.el, { playsInline: true, preload: 'auto', loop: false, muted: false, defaultMuted: false, volume: 1 }); m.el.removeAttribute('muted'); }   // sound always on
   if (m.isVideo && /\.webm$/i.test(url) && MEDIA_MP4[m.src])            // WebM refused → quietly switch to the MP4
     m.el.addEventListener('error', () => { if (m.el && !/\.mp4$/i.test(m.el.src)) m.el.src = MEDIA_MP4[m.src]; });
+  if (m.isVideo && !MEDIA_BASE && MEDIA_ALT[m.src])                     // offline folder: packed WebM refused → its packed MP4
+    m.el.addEventListener('error', () => wantMp4(m.src));
   m.el.src = url;
   return m.el;
 }
@@ -2475,19 +2509,27 @@ const TRANSITIONS = {
 function primeVideo(m) {
   if (!m || !m.isVideo || m.started || m.priming) return;
   const v = mediaEl(m); if (!v) return;
+  const id = m.primeId = (m.primeId || 0) + 1;              // each warm-up has its own ticket: an old one can't touch a newer one
   m.priming = true; v.muted = true;
   let tm = 0;
-  const stop = () => {                                      // runs once: as soon as it really plays, or at 0.4 s at the latest
-    if (!m.priming) return; m.priming = false; clearTimeout(tm); v.removeEventListener('playing', onPlaying);
+  const stop = () => {
+    if (m.primeId !== id) return;
+    m.primeId++; m.priming = false; clearTimeout(tm); v.removeEventListener('playing', onPlaying);
     if (m.started) { v.muted = false; return; }
-    v.pause(); try { v.currentTime = 0; } catch (e) {} v.muted = false;
+    v.pause(); try { if (v.currentTime > 0) v.currentTime = 0; } catch (e) {} v.muted = false;
   };
   const onPlaying = () => setTimeout(stop, 60);
   v.addEventListener('playing', onPlaying);
   tm = setTimeout(stop, 400);                               // a warm-up never keeps running, whatever the browser reports
   const pr = v.play(); if (pr && pr.catch) pr.catch(stop);
 }
-function primeAround(i) { [i, i + 1].forEach(j => { const sc = scenes[j]; if (sc && sc.kind === 'media') primeVideo(sc.media); }); }
+// watchdog: a video only ever plays because the presenter started it
+setInterval(() => {
+  if (typeof scenes === 'undefined') return;
+  scenes.forEach(sc => { const m = sc.media; if (!m || !m.isVideo || !m.el || m.started || m.priming) return;
+    const v = m.el; if (!v.paused) { v.pause(); v.muted = false; try { if (v.currentTime > 0) v.currentTime = 0; } catch (e) {} } });
+}, 1000);
+function primeAround(i) { [i, i + 1, i + 2].forEach(j => { const sc = scenes[j]; if (sc && sc.kind === 'media') primeVideo(sc.media); }); }
 setInterval(() => { if (!editing && !trans) primeAround(cur); }, 6000);
 function startVideo(v, m, fresh) {                         // fresh = the presenter starts it now → always from the beginning
   if (m) { m.started = true; m.priming = false; }
@@ -2496,7 +2538,7 @@ function startVideo(v, m, fresh) {                         // fresh = the presen
 }
 
 function syncVideos() {            // leaving a slide pauses its video
-  scenes.forEach(sc => { const m = sc.media; if (m && m.isVideo && m.el) { m.el.pause(); m.started = false; m.priming = false; } });
+  scenes.forEach(sc => { const m = sc.media; if (m && m.isVideo && m.el) { m.el.pause(); m.started = false; m.priming = false; m.primeId = (m.primeId || 0) + 1; } });
 }
 function currentVideo() { const sc = !trans && scenes[cur]; return sc && sc.media && sc.media.isVideo ? mediaEl(sc.media) : null; }
 function toggleVideo() { const v = currentVideo(); if (!v) return false; if (v.paused) startVideo(v, scenes[cur].media); else v.pause(); return true; }
@@ -2521,7 +2563,8 @@ function onSlideChange(from, to, now) {
 let warmQueue = [];
 function warmUp() {
   const q = [];
-  const media = m => { if (!m) return; const el = mediaEl(m);         // start every download now; decoding runs off the main thread
+  const media = m => { if (!m) return; if (!MEDIA_BASE && m.isVideo) return;   // offline: videos open near their slide only
+    const el = mediaEl(m);         // start every download now; decoding runs off the main thread
     if (el && !m.isVideo && el.decode) el.decode().catch(() => {}); if (m.poster && m.poster.decode) m.poster.decode().catch(() => {}); };
   scenes.forEach(sc => {
     media(sc.media); (sc.imgs || []).forEach(media); (sc.posters || []).forEach(p => media(p.m));
@@ -2540,6 +2583,11 @@ function warmUp() {
 }
 function releaseFar(to) {                      // finished long shadows are kept only near the current slide (memory)
   scenes.forEach((sc, i) => { if (Math.abs(i - to) > 3 && sc.shadowCache) { sc.shadowCache = null; sc.shadowKey = null; } });
+  if (!MEDIA_BASE) scenes.forEach((sc, i) => {     // offline: close videos far from here (they reopen when you come near)
+    const m = sc.media; if (!m || !m.isVideo || !m.el || (i >= to - 2 && i <= to + 3)) return;
+    try { m.el.pause(); m.el.removeAttribute('src'); m.el.load(); } catch (e) {}
+    m.el = null; m.started = false; m.priming = false;
+  });
 }
 
 // where the background sits for a scene: each timeline year has its own spot, the flight between years travels
